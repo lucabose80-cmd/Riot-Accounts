@@ -1,24 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getUserAccounts, deleteAccount, createSharedLink } from '../services/db';
-import { getRankIcon } from '../types';
+import { getUserAccounts, deleteAccount, createSharedLink, updateAccount } from '../services/db';
+import { getRankIcon, LOL_RANKS, VALORANT_RANKS, TFT_RANKS } from '../types';
 import type { RiotAccount, HistoryEntry } from '../types';
 import { auth } from '../firebase';
 import { fetchLoLChampions, fetchValorantAgents, fetchValorantRanksMap } from '../services/api';
 import type { Champion, Agent } from '../services/api';
+import { CharacterSelector } from '../components/CharacterSelector';
+import { generateHistoryDiff } from '../utils/history';
 import { 
-  Container, Typography, Button, Card, CardContent, CardActions, 
-  Grid, Box, IconButton, Tooltip, CircularProgress, AppBar, Toolbar, Checkbox,
-  Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText, Divider
+  Container, Typography, Button, Box, IconButton, Tooltip, CircularProgress, AppBar, Toolbar, Checkbox,
+  Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText, Divider,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, TextField, MenuItem
 } from '@mui/material';
-import { Plus, LogOut, Edit, Share2, Trash2, History } from 'lucide-react';
+import { Plus, LogOut, Share2, Trash2, History, Minus, Settings } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  
   const [accounts, setAccounts] = useState<RiotAccount[]>([]);
+  const [originalAccounts, setOriginalAccounts] = useState<Record<string, RiotAccount>>({});
+  
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   
   const [champions, setChampions] = useState<Champion[]>([]);
@@ -26,13 +32,19 @@ export const Dashboard: React.FC = () => {
   const [valoRankMap, setValoRankMap] = useState<Record<string, string>>({});
 
   const [historyModal, setHistoryModal] = useState<HistoryEntry[] | null>(null);
+  const [editCharactersModal, setEditCharactersModal] = useState<{ accountId: string, game: 'lol' | 'valorant' } | null>(null);
 
   const fetchAccounts = async () => {
     if (!currentUser) return;
     setLoading(true);
     try {
       const data = await getUserAccounts(currentUser.uid);
-      setAccounts(data);
+      const preparedAccs = data.map(a => ({ ...a, tft: a.tft || { rank: 'Unranked' } }));
+      setAccounts(preparedAccs);
+      
+      const orig: Record<string, RiotAccount> = {};
+      preparedAccs.forEach(a => orig[a.id!] = JSON.parse(JSON.stringify(a)));
+      setOriginalAccounts(orig);
     } catch (error) {
       console.error("Failed to fetch accounts", error);
     } finally {
@@ -92,37 +104,102 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const renderRank = (game: 'lol' | 'valorant' | 'tft', rank: string, level?: number) => {
-    let iconUrl = null;
-    if (game === 'valorant') {
-      iconUrl = valoRankMap[rank] || null;
-    } else {
-      iconUrl = getRankIcon(rank, game);
+  const handleUpdateAccount = async (account: RiotAccount) => {
+    if (!account.id) return;
+    setSaving(account.id);
+
+    try {
+      const oldAcc = originalAccounts[account.id];
+      const diffs = generateHistoryDiff(oldAcc, account);
+      
+      let actionMsg = 'Account bearbeitet (Besitzer)';
+      if (diffs.length > 0) {
+        actionMsg = diffs.join(', ');
+      }
+
+      const historyEntry: HistoryEntry = {
+        timestamp: Date.now(),
+        user: 'Besitzer',
+        action: actionMsg
+      };
+      
+      const updatedHistory = [...(account.history || []), historyEntry];
+
+      await updateAccount(account.id, {
+        lol: account.lol,
+        valorant: account.valorant,
+        tft: account.tft,
+        history: updatedHistory
+      });
+      
+      setAccounts(prev => prev.map(a => a.id === account.id ? { ...a, history: updatedHistory } : a));
+      setOriginalAccounts(prev => ({ ...prev, [account.id!]: JSON.parse(JSON.stringify({ ...account, history: updatedHistory })) }));
+    } catch (err: any) {
+      console.error(`Fehler bei ${account.ingameName}: `, err);
+      alert("Fehler beim Speichern!");
+    } finally {
+      setSaving(null);
     }
-    
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {iconUrl && (
-          <img src={iconUrl} alt={rank} style={{ width: 40, height: 40, objectFit: 'contain' }} />
-        )}
-        <Box>
-          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{rank}</Typography>
-          {level !== undefined && <Typography variant="caption" color="text.secondary">Level {level}</Typography>}
-        </Box>
-      </Box>
-    );
   };
 
-  const renderCharacters = (ids: string[], game: 'lol' | 'valorant') => {
-    if (!ids || ids.length === 0) return <Typography variant="caption" color="text.secondary">Keine Charaktere</Typography>;
-    
+  const handleChange = (accountId: string, field: string, value: any) => {
+    setAccounts(prev => prev.map(acc => {
+      if (acc.id !== accountId) return acc;
+      const parts = field.split('.');
+      if (parts[0] === 'lol') return { ...acc, lol: { ...acc.lol, [parts[1]]: value } };
+      if (parts[0] === 'valorant') return { ...acc, valorant: { ...acc.valorant, [parts[1]]: value } };
+      if (parts[0] === 'tft') return { ...acc, tft: { ...acc.tft!, [parts[1]]: value } };
+      return acc;
+    }));
+  };
+
+  const formattedChampions = champions.map(c => ({
+    id: c.id, name: c.name, imageUrl: c.imageUrl || '', roles: c.tags
+  }));
+
+  const formattedAgents = agents.map(a => ({
+    id: a.uuid, name: a.displayName, imageUrl: a.displayIcon, roles: a.role ? [a.role.displayName] : ['Unbekannt']
+  }));
+
+  const renderRankIcon = (game: 'lol' | 'valorant' | 'tft', rank: string) => {
+    let url = null;
+    let size = 40; 
+    if (game === 'valorant') {
+      url = valoRankMap[rank] || null;
+      size = 32;
+    } else {
+      url = getRankIcon(rank, game);
+    }
+    if (!url) return null;
+    return <img src={url} alt={rank} style={{ width: size, height: size, objectFit: 'contain', marginRight: 8 }} />;
+  };
+
+  const LevelInput = ({ value, onChange }: { value: number, onChange: (v: number) => void }) => (
+    <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 0.5 }}>
+      <IconButton size="small" onClick={() => onChange(Math.max(1, value - 1))}><Minus size={14} /></IconButton>
+      <Typography variant="body2" sx={{ width: 30, textAlign: 'center', fontWeight: 'bold' }}>{value}</Typography>
+      <IconButton size="small" onClick={() => onChange(value + 1)}><Plus size={14} /></IconButton>
+    </Box>
+  );
+
+  const renderCharacters = (ids: string[], game: 'lol' | 'valorant', onClick: () => void) => {
     const maxChars = game === 'lol' ? champions.length : agents.length;
     
     if (ids.length >= maxChars && maxChars > 0) {
       return (
-        <Box sx={{ display: 'inline-flex', mt: 1, alignItems: 'center', bgcolor: 'warning.light', color: 'warning.contrastText', px: 1, py: 0.5, borderRadius: 2, fontSize: '0.75rem', fontWeight: 'bold' }}>
-          🌟 Alle freigeschaltet
-        </Box>
+        <Tooltip title="Klicken zum Bearbeiten">
+          <Box onClick={onClick} sx={{ cursor: 'pointer', display: 'inline-flex', mt: 1, alignItems: 'center', bgcolor: 'warning.light', color: 'warning.contrastText', px: 1, py: 0.5, borderRadius: 2, fontSize: '0.75rem', fontWeight: 'bold' }}>
+            🌟 Alle freigeschaltet ({ids.length})
+          </Box>
+        </Tooltip>
+      );
+    }
+
+    if (!ids || ids.length === 0) {
+      return (
+        <Tooltip title="Klicken zum Bearbeiten">
+          <Button size="small" onClick={onClick} variant="outlined" sx={{ mt: 1, fontSize: '0.7rem' }}>Charaktere hinzufügen</Button>
+        </Tooltip>
       );
     }
 
@@ -136,30 +213,23 @@ export const Dashboard: React.FC = () => {
       }
     });
 
-    // Sort alphabetically
     itemsData.sort((a, b) => a.name.localeCompare(b.name));
-
     const displayItems = itemsData.slice(0, 8);
     const hasMore = itemsData.length > 8;
-    
+
     return (
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-        {displayItems.map(item => (
-          <Tooltip key={item.id} title={item.name}>
-            <Box
-              component="img"
-              src={item.img}
-              alt={item.name}
-              sx={{ width: 28, height: 28, borderRadius: '50%', border: '2px solid', borderColor: 'divider' }}
-            />
-          </Tooltip>
-        ))}
-        {hasMore && (
-          <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'action.selected', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Typography variant="caption">+{itemsData.length - 8}</Typography>
-          </Box>
-        )}
-      </Box>
+      <Tooltip title="Klicken zum Bearbeiten">
+        <Box onClick={onClick} sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1, cursor: 'pointer', '&:hover': { opacity: 0.8 } }}>
+          {displayItems.map(item => (
+            <Box key={item.id} component="img" src={item.img} alt={item.name} sx={{ width: 28, height: 28, borderRadius: '50%', border: '2px solid', borderColor: 'divider' }} />
+          ))}
+          {hasMore && (
+            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'action.selected', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Typography variant="caption">+{itemsData.length - 8}</Typography>
+            </Box>
+          )}
+        </Box>
+      </Tooltip>
     );
   };
 
@@ -176,27 +246,18 @@ export const Dashboard: React.FC = () => {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
           <Typography variant="h4" component="h1">
             Meine Accounts
           </Typography>
           <Box sx={{ display: 'flex', gap: 2 }}>
             {selectedAccounts.length > 0 && (
-              <Button 
-                variant="outlined" 
-                color="primary"
-                startIcon={<Share2 size={20} />}
-                onClick={handleShareSelected}
-              >
+              <Button variant="outlined" color="primary" startIcon={<Share2 size={20} />} onClick={handleShareSelected}>
                 Ausgewählte Teilen ({selectedAccounts.length})
               </Button>
             )}
-            <Button 
-              variant="contained" 
-              startIcon={<Plus size={20} />}
-              onClick={() => navigate('/account/new')}
-            >
+            <Button variant="contained" startIcon={<Plus size={20} />} onClick={() => navigate('/account/new')}>
               Neuer Account
             </Button>
           </Box>
@@ -208,69 +269,114 @@ export const Dashboard: React.FC = () => {
           </Box>
         ) : accounts.length === 0 ? (
           <Box sx={{ textAlign: 'center', mt: 10 }}>
-            <Typography variant="body1" color="text.secondary">
-              Du hast noch keine Accounts hinzugefügt.
-            </Typography>
+            <Typography variant="body1" color="text.secondary">Du hast noch keine Accounts hinzugefügt.</Typography>
           </Box>
         ) : (
-          <Grid container spacing={3}>
-            {accounts.map((acc) => (
-              <Grid size={{ xs: 12, md: 6, lg: 4 }} key={acc.id}>
-                <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                  <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
-                    <Checkbox 
-                      checked={acc.id ? selectedAccounts.includes(acc.id) : false}
-                      onChange={() => acc.id && handleToggleSelect(acc.id)}
+          <TableContainer component={Paper} elevation={3}>
+            <Table sx={{ minWidth: 1000 }}>
+              <TableHead sx={{ bgcolor: 'background.default' }}>
+                <TableRow>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      indeterminate={selectedAccounts.length > 0 && selectedAccounts.length < accounts.length}
+                      checked={accounts.length > 0 && selectedAccounts.length === accounts.length}
+                      onChange={(e) => setSelectedAccounts(e.target.checked ? accounts.map(a => a.id!) : [])}
                     />
-                  </Box>
-                  <CardContent sx={{ flexGrow: 1, pt: 4 }}>
-                    <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 'bold' }}>
-                      {acc.ingameName} <Typography component="span" color="text.secondary">#{acc.server}</Typography>
-                    </Typography>
-                    <Typography color="text.secondary" gutterBottom>
-                      Login: {acc.loginName}
-                    </Typography>
-                    
-                    <Grid container spacing={2} sx={{ mt: 2 }}>
-                      <Grid size={{ xs: 6 }}>
-                        <Typography variant="subtitle2" color="primary">League of Legends</Typography>
-                        {renderRank('lol', acc.lol?.rank || 'Unranked', acc.lol?.level || 1)}
-                        {renderCharacters(acc.lol?.champions || [], 'lol')}
-                      </Grid>
+                  </TableCell>
+                  <TableCell>Account</TableCell>
+                  <TableCell>League of Legends</TableCell>
+                  <TableCell>Valorant</TableCell>
+                  <TableCell>TFT</TableCell>
+                  <TableCell align="right">Aktionen</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {accounts.map((account) => {
+                  const isDirty = JSON.stringify(account) !== JSON.stringify(originalAccounts[account.id!]);
+                  return (
+                    <TableRow key={account.id} hover selected={selectedAccounts.includes(account.id!)}>
+                      <TableCell padding="checkbox">
+                        <Checkbox 
+                          checked={selectedAccounts.includes(account.id!)}
+                          onChange={() => handleToggleSelect(account.id!)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName}</Typography>
+                        <Typography variant="caption" color="text.secondary">Server: {account.server}</Typography><br/>
+                        <Typography variant="caption" color="text.secondary">Login: {account.loginName}</Typography>
+                      </TableCell>
 
-                      <Grid size={{ xs: 6 }}>
-                        <Typography variant="subtitle2" color="secondary">TFT</Typography>
-                        {renderRank('tft', acc.tft?.rank || 'Unranked')}
-                      </Grid>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                          <LevelInput value={account.lol.level} onChange={(v) => handleChange(account.id!, 'lol.level', v)} />
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            {renderRankIcon('lol', account.lol.rank)}
+                            <TextField select size="small" variant="standard" value={account.lol.rank} onChange={(e) => handleChange(account.id!, 'lol.rank', e.target.value)}>
+                              {LOL_RANKS.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                            </TextField>
+                          </Box>
+                        </Box>
+                        {renderCharacters(account.lol.champions, 'lol', () => setEditCharactersModal({ accountId: account.id!, game: 'lol' }))}
+                      </TableCell>
 
-                      <Grid size={{ xs: 12 }}>
-                        <Typography variant="subtitle2" color="error" sx={{ mt: 1 }}>Valorant</Typography>
-                        {renderRank('valorant', acc.valorant?.rank || 'Unranked', acc.valorant?.level || 1)}
-                        {renderCharacters(acc.valorant?.characters || [], 'valorant')}
-                      </Grid>
-                    </Grid>
-                  </CardContent>
-                  <CardActions sx={{ justifyContent: 'flex-end', p: 2, pt: 0, borderTop: '1px solid', borderColor: 'divider', mt: 2 }}>
-                    <Tooltip title="Verlauf (Audit Log)">
-                      <IconButton onClick={() => setHistoryModal(acc.history || [])} color="primary">
-                        <History size={20} />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Einzelnen Account bearbeiten">
-                      <IconButton onClick={() => navigate(`/account/${acc.id}`)} color="secondary">
-                        <Edit size={20} />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Account löschen">
-                      <IconButton onClick={() => acc.id && handleDelete(acc.id)} color="error">
-                        <Trash2 size={20} />
-                      </IconButton>
-                    </Tooltip>
-                  </CardActions>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                          <LevelInput value={account.valorant.level} onChange={(v) => handleChange(account.id!, 'valorant.level', v)} />
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            {renderRankIcon('valorant', account.valorant.rank)}
+                            <TextField select size="small" variant="standard" value={account.valorant.rank} onChange={(e) => handleChange(account.id!, 'valorant.rank', e.target.value)}>
+                              {VALORANT_RANKS.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                            </TextField>
+                          </Box>
+                        </Box>
+                        {renderCharacters(account.valorant.characters, 'valorant', () => setEditCharactersModal({ accountId: account.id!, game: 'valorant' }))}
+                      </TableCell>
+
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {renderRankIcon('tft', account.tft?.rank || 'Unranked')}
+                          <TextField select size="small" variant="standard" value={account.tft?.rank || 'Unranked'} onChange={(e) => handleChange(account.id!, 'tft.rank', e.target.value)}>
+                            {TFT_RANKS.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                          </TextField>
+                        </Box>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                          <Button 
+                            variant={isDirty ? "contained" : "outlined"} 
+                            color={isDirty ? "primary" : "inherit"}
+                            size="small" 
+                            onClick={() => handleUpdateAccount(account)} 
+                            disabled={saving === account.id || !isDirty}
+                            sx={{ minWidth: 100 }}
+                          >
+                            {saving === account.id ? 'Lädt...' : 'Speichern'}
+                          </Button>
+                          <Tooltip title="Vollständige Account-Details bearbeiten">
+                            <IconButton onClick={() => navigate(`/account/${account.id}`)} color="secondary" size="small">
+                              <Settings size={18} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Verlauf (Audit Log)">
+                            <IconButton onClick={() => setHistoryModal(account.history || [])} color="primary" size="small">
+                              <History size={18} />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Account löschen">
+                            <IconButton onClick={() => account.id && handleDelete(account.id)} color="error" size="small">
+                              <Trash2 size={18} />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Container>
 
@@ -280,7 +386,7 @@ export const Dashboard: React.FC = () => {
         <DialogContent dividers>
           {historyModal && historyModal.length > 0 ? (
             <List>
-              {historyModal.map((entry, idx) => (
+              {[...historyModal].reverse().map((entry, idx) => (
                 <React.Fragment key={idx}>
                   <ListItem>
                     <ListItemText 
@@ -300,6 +406,32 @@ export const Dashboard: React.FC = () => {
           <Button onClick={() => setHistoryModal(null)}>Schließen</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Character Edit Dialog */}
+      <Dialog open={!!editCharactersModal} onClose={() => setEditCharactersModal(null)} maxWidth="md" fullWidth>
+        <DialogTitle>Charaktere ansehen & bearbeiten</DialogTitle>
+        <DialogContent dividers>
+          {editCharactersModal && (
+            <CharacterSelector
+              title={editCharactersModal.game === 'lol' ? "Champions" : "Agenten"}
+              characters={editCharactersModal.game === 'lol' ? formattedChampions : formattedAgents}
+              selectedIds={
+                (editCharactersModal.game === 'lol' 
+                  ? accounts.find(a => a.id === editCharactersModal.accountId)?.lol?.champions 
+                  : accounts.find(a => a.id === editCharactersModal.accountId)?.valorant?.characters) || []
+              }
+              onChange={(ids) => {
+                const field = editCharactersModal.game === 'lol' ? 'lol.champions' : 'valorant.characters';
+                handleChange(editCharactersModal.accountId, field, ids);
+              }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditCharactersModal(null)} variant="contained">Fertig</Button>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 };
