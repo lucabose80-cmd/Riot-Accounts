@@ -65,7 +65,7 @@ export const getRankIcon = (rank: string, game: 'lol' | 'valorant' | 'tft'): str
   const baseTier = rank.split(' ')[0].toLowerCase();
   
   if (game === 'lol' || game === 'tft') {
-    return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-emblem/emblem-${baseTier}.png`;
+    return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-shared-components/global/default/${baseTier}.png`;
   }
   
   return null; 
