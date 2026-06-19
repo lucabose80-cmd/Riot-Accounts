@@ -35,7 +35,7 @@ export const Login: React.FC = () => {
     <Container maxWidth="xs" sx={{ mt: 8 }}>
       <Paper elevation={3} sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Typography component="h1" variant="h5" sx={{ mb: 3 }}>
-          {isLogin ? 'Login to Riot Accounts' : 'Create an Account'}
+          {isLogin ? 'Riot Accounts Login' : 'Account erstellen'}
         </Typography>
         
         {error && <Alert severity="error" sx={{ width: '100%', mb: 2 }}>{error}</Alert>}
@@ -46,7 +46,7 @@ export const Login: React.FC = () => {
             required
             fullWidth
             id="email"
-            label="Email Address"
+            label="E-Mail Adresse"
             name="email"
             autoComplete="email"
             autoFocus
@@ -58,7 +58,7 @@ export const Login: React.FC = () => {
             required
             fullWidth
             name="password"
-            label="Password"
+            label="Passwort"
             type="password"
             id="password"
             autoComplete="current-password"
@@ -72,14 +72,14 @@ export const Login: React.FC = () => {
             disabled={loading}
             sx={{ mt: 3, mb: 2 }}
           >
-            {isLogin ? 'Sign In' : 'Sign Up'}
+            {isLogin ? 'Anmelden' : 'Registrieren'}
           </Button>
           <Button
             fullWidth
             variant="text"
             onClick={() => setIsLogin(!isLogin)}
           >
-            {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+            {isLogin ? "Noch keinen Account? Registrieren" : "Bereits einen Account? Anmelden"}
           </Button>
         </Box>
       </Paper>

@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { createAccount, updateAccount, getUserAccounts } from '../services/db';
 import { fetchLoLChampions, fetchValorantAgents } from '../services/api';
 import type { Champion, Agent } from '../services/api';
-import { LOL_RANKS, VALORANT_RANKS } from '../types';
+import { LOL_RANKS, VALORANT_RANKS, TFT_RANKS } from '../types';
 import type { RiotAccount } from '../types';
 import { CharacterSelector } from '../components/CharacterSelector';
 import { 
@@ -28,12 +28,13 @@ export const AccountDetail: React.FC = () => {
 
   const [account, setAccount] = useState<Partial<RiotAccount>>({
     ingameName: '',
-    tag: '',
+    server: '',
     loginName: '',
     password: '',
     email: '',
     lol: { level: 1, rank: 'Unranked', champions: [] },
     valorant: { level: 1, rank: 'Unranked', characters: [] },
+    tft: { rank: 'Unranked' }
   });
 
   useEffect(() => {
@@ -48,19 +49,19 @@ export const AccountDetail: React.FC = () => {
         setAgents(agts);
 
         if (!isNew && id && currentUser) {
-          // Fetch existing account. Since we don't have a getAccountById we use getUserAccounts and filter
-          // In a real app we'd have getAccountById, but let's do this for simplicity given our db.ts
           const userAccs = await getUserAccounts(currentUser.uid);
           const existingAcc = userAccs.find(a => a.id === id);
           if (existingAcc) {
+            // Ensure tft object exists for older accounts
+            if (!existingAcc.tft) existingAcc.tft = { rank: 'Unranked' };
             setAccount(existingAcc);
           } else {
-            setError("Account not found or you don't have permission.");
+            setError("Account nicht gefunden oder keine Berechtigung.");
           }
         }
       } catch (err) {
         console.error(err);
-        setError("Failed to load data.");
+        setError("Fehler beim Laden der Daten.");
       } finally {
         setLoading(false);
       }
@@ -78,11 +79,9 @@ export const AccountDetail: React.FC = () => {
 
     try {
       if (isNew) {
-        const shareId = Math.random().toString(36).substring(2, 10);
         await createAccount({
           ...(account as RiotAccount),
           userId: currentUser.uid,
-          shareId,
         });
       } else if (id) {
         await updateAccount(id, account);
@@ -109,6 +108,12 @@ export const AccountDetail: React.FC = () => {
         ...prev,
         valorant: { ...prev.valorant!, [field]: field === 'level' ? Number(value) : value }
       }));
+    } else if (name.startsWith('tft.')) {
+      const field = name.split('.')[1];
+      setAccount(prev => ({
+        ...prev,
+        tft: { ...prev.tft!, [field]: value }
+      }));
     } else {
       setAccount(prev => ({ ...prev, [name]: value }));
     }
@@ -122,7 +127,6 @@ export const AccountDetail: React.FC = () => {
     );
   }
 
-  // Format characters for the selector
   const formattedChampions = champions.map(c => ({
     id: c.id,
     name: c.name,
@@ -134,39 +138,39 @@ export const AccountDetail: React.FC = () => {
     id: a.uuid,
     name: a.displayName,
     imageUrl: a.displayIcon,
-    roles: a.role ? [a.role.displayName] : ['Unknown']
+    roles: a.role ? [a.role.displayName] : ['Unbekannt']
   }));
 
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 8 }}>
       <Button startIcon={<ArrowLeft />} onClick={() => navigate('/')} sx={{ mb: 2 }}>
-        Back to Dashboard
+        Zurück zum Dashboard
       </Button>
       
       <Paper elevation={3} sx={{ p: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
-          {isNew ? 'Add New Account' : 'Edit Account'}
+          {isNew ? 'Neuen Account hinzufügen' : 'Account bearbeiten'}
         </Typography>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
         <Box component="form" onSubmit={handleSubmit}>
-          <Typography variant="h6" sx={{ mt: 2, mb: 2, color: 'primary.main' }}>General Information</Typography>
+          <Typography variant="h6" sx={{ mt: 2, mb: 2, color: 'primary.main' }}>Allgemeine Informationen</Typography>
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth required label="Ingame Name" name="ingameName" value={account.ingameName || ''} onChange={handleChange} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField fullWidth required label="Tagline (e.g. EUW)" name="tag" value={account.tag || ''} onChange={handleChange} />
+              <TextField fullWidth required label="Server (z.B. EUW)" name="server" value={account.server || ''} onChange={handleChange} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth required label="Login Name" name="loginName" value={account.loginName || ''} onChange={handleChange} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField fullWidth label="Password" name="password" type="password" value={account.password || ''} onChange={handleChange} />
+              <TextField fullWidth label="Passwort" name="password" type="password" value={account.password || ''} onChange={handleChange} />
             </Grid>
             <Grid size={{ xs: 12 }}>
-              <TextField fullWidth required label="Email Address" name="email" type="email" value={account.email || ''} onChange={handleChange} />
+              <TextField fullWidth required label="E-Mail Adresse" name="email" type="email" value={account.email || ''} onChange={handleChange} />
             </Grid>
           </Grid>
 
@@ -178,7 +182,7 @@ export const AccountDetail: React.FC = () => {
               <TextField fullWidth required label="Level" name="lol.level" type="number" value={account.lol?.level || 1} onChange={handleChange} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField select fullWidth required label="Rank" name="lol.rank" value={account.lol?.rank || 'Unranked'} onChange={handleChange}>
+              <TextField select fullWidth required label="Rang" name="lol.rank" value={account.lol?.rank || 'Unranked'} onChange={handleChange}>
                 {LOL_RANKS.map(rank => (
                   <MenuItem key={rank} value={rank}>{rank}</MenuItem>
                 ))}
@@ -187,11 +191,24 @@ export const AccountDetail: React.FC = () => {
           </Grid>
 
           <CharacterSelector 
-            title="Unlocked Champions"
+            title="Freigeschaltete Champions"
             characters={formattedChampions}
             selectedIds={account.lol?.champions || []}
             onChange={(ids) => setAccount(prev => ({ ...prev, lol: { ...prev.lol!, champions: ids } }))}
           />
+
+          <Divider sx={{ my: 4 }} />
+
+          <Typography variant="h6" sx={{ mb: 2, color: 'secondary.main' }}>Teamfight Tactics (TFT)</Typography>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField select fullWidth required label="TFT Rang" name="tft.rank" value={account.tft?.rank || 'Unranked'} onChange={handleChange}>
+                {TFT_RANKS.map(rank => (
+                  <MenuItem key={rank} value={rank}>{rank}</MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+          </Grid>
 
           <Divider sx={{ my: 4 }} />
 
@@ -201,7 +218,7 @@ export const AccountDetail: React.FC = () => {
               <TextField fullWidth required label="Level" name="valorant.level" type="number" value={account.valorant?.level || 1} onChange={handleChange} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField select fullWidth required label="Rank" name="valorant.rank" value={account.valorant?.rank || 'Unranked'} onChange={handleChange}>
+              <TextField select fullWidth required label="Rang" name="valorant.rank" value={account.valorant?.rank || 'Unranked'} onChange={handleChange}>
                 {VALORANT_RANKS.map(rank => (
                   <MenuItem key={rank} value={rank}>{rank}</MenuItem>
                 ))}
@@ -210,16 +227,16 @@ export const AccountDetail: React.FC = () => {
           </Grid>
 
           <CharacterSelector 
-            title="Unlocked Agents"
+            title="Freigeschaltete Agenten"
             characters={formattedAgents}
             selectedIds={account.valorant?.characters || []}
             onChange={(ids) => setAccount(prev => ({ ...prev, valorant: { ...prev.valorant!, characters: ids } }))}
           />
 
           <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-            <Button variant="outlined" onClick={() => navigate('/')}>Cancel</Button>
+            <Button variant="outlined" onClick={() => navigate('/')}>Abbrechen</Button>
             <Button type="submit" variant="contained" disabled={saving}>
-              {saving ? 'Saving...' : 'Save Account'}
+              {saving ? 'Wird gespeichert...' : 'Account Speichern'}
             </Button>
           </Box>
         </Box>

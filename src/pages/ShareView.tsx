@@ -1,44 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { getAccountByShareId, updateAccount } from '../services/db';
+import { getSharedAccounts, updateAccount } from '../services/db';
 import { fetchLoLChampions, fetchValorantAgents } from '../services/api';
 import type { Champion, Agent } from '../services/api';
-import { LOL_RANKS, VALORANT_RANKS } from '../types';
+import { LOL_RANKS, VALORANT_RANKS, TFT_RANKS } from '../types';
 import type { RiotAccount } from '../types';
 import { CharacterSelector } from '../components/CharacterSelector';
 import { 
   Container, Typography, TextField, Button, Box, Paper, 
-  Grid, MenuItem, CircularProgress, Divider, Alert, Dialog, DialogTitle, DialogContent, DialogActions
+  Grid, MenuItem, CircularProgress, Divider, Alert, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip
 } from '@mui/material';
 
 export const ShareView: React.FC = () => {
   const { shareId } = useParams<{ shareId: string }>();
   
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<string | null>(null); // store saving account id
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const [account, setAccount] = useState<RiotAccount | null>(null);
+  const [accounts, setAccounts] = useState<RiotAccount[]>([]);
   const [champions, setChampions] = useState<Champion[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
 
   const [visitorName, setVisitorName] = useState(() => localStorage.getItem('riot_visitor_name') || '');
   const [showNameDialog, setShowNameDialog] = useState(!localStorage.getItem('riot_visitor_name'));
   const [tempName, setTempName] = useState(visitorName);
+  
+  const [editCharactersModal, setEditCharactersModal] = useState<{ accountId: string, game: 'lol' | 'valorant' } | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
       if (!shareId) return;
       setLoading(true);
       try {
-        const acc = await getAccountByShareId(shareId);
-        if (!acc) {
-          setError("This shared account link is invalid or has expired.");
+        const accs = await getSharedAccounts(shareId);
+        if (accs.length === 0) {
+          setError("Dieser Share-Link ist ungültig oder abgelaufen.");
           setLoading(false);
           return;
         }
-        setAccount(acc);
+        
+        // Ensure tft object exists
+        setAccounts(accs.map(a => ({ ...a, tft: a.tft || { rank: 'Unranked' } })));
 
         const [champs, agts] = await Promise.all([
           fetchLoLChampions(),
@@ -48,7 +52,7 @@ export const ShareView: React.FC = () => {
         setAgents(agts);
       } catch (err) {
         console.error(err);
-        setError("Failed to load data.");
+        setError("Fehler beim Laden der Daten.");
       } finally {
         setLoading(false);
       }
@@ -64,11 +68,9 @@ export const ShareView: React.FC = () => {
     setShowNameDialog(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!account || !account.id) return;
-    
-    setSaving(true);
+  const handleUpdateAccount = async (account: RiotAccount) => {
+    if (!account.id) return;
+    setSaving(account.id);
     setSuccess('');
     setError('');
 
@@ -76,31 +78,66 @@ export const ShareView: React.FC = () => {
       await updateAccount(account.id, {
         lol: account.lol,
         valorant: account.valorant,
+        tft: account.tft,
         lastAccessedBy: visitorName
       });
-      setSuccess('Account progress updated successfully!');
+      setSuccess(`${account.ingameName} wurde erfolgreich aktualisiert!`);
     } catch (err: any) {
-      setError(err.message);
+      setError(`Fehler bei ${account.ingameName}: ` + err.message);
     } finally {
-      setSaving(false);
+      setSaving(null);
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    if (name.startsWith('lol.')) {
-      const field = name.split('.')[1];
-      setAccount(prev => {
-        if (!prev) return prev;
-        return { ...prev, lol: { ...prev.lol, [field]: field === 'level' ? Number(value) : value } };
-      });
-    } else if (name.startsWith('valorant.')) {
-      const field = name.split('.')[1];
-      setAccount(prev => {
-        if (!prev) return prev;
-        return { ...prev, valorant: { ...prev.valorant, [field]: field === 'level' ? Number(value) : value } };
-      });
-    }
+  const handleChange = (accountId: string, field: string, value: any) => {
+    setAccounts(prev => prev.map(acc => {
+      if (acc.id !== accountId) return acc;
+      
+      const parts = field.split('.');
+      if (parts[0] === 'lol') {
+        return { ...acc, lol: { ...acc.lol, [parts[1]]: value } };
+      } else if (parts[0] === 'valorant') {
+        return { ...acc, valorant: { ...acc.valorant, [parts[1]]: value } };
+      } else if (parts[0] === 'tft') {
+        return { ...acc, tft: { ...acc.tft!, [parts[1]]: value } };
+      }
+      return acc;
+    }));
+  };
+
+  const formattedChampions = champions.map(c => ({
+    id: c.id, name: c.name, imageUrl: c.imageUrl || '', roles: c.tags
+  }));
+
+  const formattedAgents = agents.map(a => ({
+    id: a.uuid, name: a.displayName, imageUrl: a.displayIcon, roles: a.role ? [a.role.displayName] : ['Unbekannt']
+  }));
+
+  const renderReadonlyCharacters = (ids: string[], game: 'lol' | 'valorant') => {
+    if (!ids || ids.length === 0) return <Typography variant="body2" color="text.secondary">Keine</Typography>;
+    
+    return (
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+        {ids.map(id => {
+          let img = '';
+          let name = '';
+          if (game === 'lol') {
+            const c = champions.find(c => c.id === id);
+            img = c?.imageUrl || '';
+            name = c?.name || id;
+          } else {
+            const a = agents.find(a => a.uuid === id);
+            img = a?.displayIcon || '';
+            name = a?.displayName || id;
+          }
+          return (
+            <Tooltip key={id} title={name}>
+              <Box component="img" src={img} alt={name} sx={{ width: 32, height: 32, borderRadius: '50%' }} />
+            </Tooltip>
+          );
+        })}
+      </Box>
+    );
   };
 
   if (loading) {
@@ -111,7 +148,7 @@ export const ShareView: React.FC = () => {
     );
   }
 
-  if (error && !account) {
+  if (error && accounts.length === 0) {
     return (
       <Container maxWidth="md" sx={{ mt: 8 }}>
         <Alert severity="error">{error}</Alert>
@@ -119,122 +156,168 @@ export const ShareView: React.FC = () => {
     );
   }
 
-  if (!account) return null;
-
-  const formattedChampions = champions.map(c => ({
-    id: c.id, name: c.name, imageUrl: c.imageUrl || '', roles: c.tags
-  }));
-
-  const formattedAgents = agents.map(a => ({
-    id: a.uuid, name: a.displayName, imageUrl: a.displayIcon, roles: a.role ? [a.role.displayName] : ['Unknown']
-  }));
-
   return (
-    <Container maxWidth="md" sx={{ mt: 8, mb: 8 }}>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 8 }}>
       <Dialog open={showNameDialog}>
-        <DialogTitle>Who are you?</DialogTitle>
+        <DialogTitle>Wer bist du?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2 }}>
-            Please enter your name so the account owner knows who is updating their progress.
+            Bitte gib deinen Namen ein, damit der Besitzer weiß, wer den Account aktualisiert hat.
           </Typography>
           <TextField
             autoFocus
             fullWidth
-            label="Your Name"
+            label="Dein Name"
             value={tempName}
             onChange={(e) => setTempName(e.target.value)}
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={handleSaveName} variant="contained" disabled={!tempName.trim()}>
-            Continue
+            Weiter
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Paper elevation={3} sx={{ p: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom align="center">
-          Shared Account View
-        </Typography>
-        
-        <Box sx={{ bgcolor: 'background.default', p: 3, borderRadius: 2, mb: 4, mt: 3 }}>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Typography variant="caption" color="text.secondary">Ingame Name</Typography>
-              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName} #{account.tag}</Typography>
+      <Typography variant="h4" component="h1" gutterBottom align="center">
+        Freigegebene Accounts
+      </Typography>
+
+      {success && <Alert severity="success" sx={{ mb: 3 }}>{success}</Alert>}
+      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+
+      {accounts.map(account => (
+        <Paper elevation={3} sx={{ p: 4, mb: 4 }} key={account.id}>
+          <Box sx={{ bgcolor: 'background.default', p: 3, borderRadius: 2, mb: 4 }}>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary">Ingame Name</Typography>
+                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName} #{account.server}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary">Login Name</Typography>
+                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.loginName}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <Typography variant="caption" color="text.secondary">Passwort</Typography>
+                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.password || 'Nicht angegeben'}</Typography>
+              </Grid>
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Typography variant="caption" color="text.secondary">Login Name</Typography>
-              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.loginName}</Typography>
+          </Box>
+
+          <Divider sx={{ my: 4 }} />
+
+          <Grid container spacing={4}>
+            {/* LOL Section */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="h6" sx={{ color: 'primary.main', mb: 2 }}>League of Legends</Typography>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <TextField 
+                  size="small" label="Level" type="number" 
+                  value={account.lol.level} 
+                  onChange={(e) => handleChange(account.id!, 'lol.level', Number(e.target.value))} 
+                />
+                <TextField 
+                  select size="small" label="Rang" 
+                  value={account.lol.rank} 
+                  onChange={(e) => handleChange(account.id!, 'lol.rank', e.target.value)}
+                >
+                  {LOL_RANKS.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                </TextField>
+              </Box>
+              <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="subtitle2">Freigeschaltete Champions</Typography>
+                <Button size="small" variant="outlined" onClick={() => setEditCharactersModal({ accountId: account.id!, game: 'lol' })}>
+                  Bearbeiten
+                </Button>
+              </Box>
+              {renderReadonlyCharacters(account.lol.champions, 'lol')}
             </Grid>
+
+            {/* Valorant Section */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="h6" sx={{ color: 'error.main', mb: 2 }}>Valorant</Typography>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <TextField 
+                  size="small" label="Level" type="number" 
+                  value={account.valorant.level} 
+                  onChange={(e) => handleChange(account.id!, 'valorant.level', Number(e.target.value))} 
+                />
+                <TextField 
+                  select size="small" label="Rang" 
+                  value={account.valorant.rank} 
+                  onChange={(e) => handleChange(account.id!, 'valorant.rank', e.target.value)}
+                >
+                  {VALORANT_RANKS.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                </TextField>
+              </Box>
+              <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="subtitle2">Freigeschaltete Agenten</Typography>
+                <Button size="small" variant="outlined" onClick={() => setEditCharactersModal({ accountId: account.id!, game: 'valorant' })}>
+                  Bearbeiten
+                </Button>
+              </Box>
+              {renderReadonlyCharacters(account.valorant.characters, 'valorant')}
+            </Grid>
+
+            {/* TFT Section */}
             <Grid size={{ xs: 12 }}>
-              <Typography variant="caption" color="text.secondary">Password</Typography>
-              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.password || 'Not provided'}</Typography>
-            </Grid>
-          </Grid>
-        </Box>
-
-        {success && <Alert severity="success" sx={{ mb: 3 }}>{success}</Alert>}
-        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-
-        <Typography variant="body2" color="text.secondary" gutterBottom>
-          You can update the account's level, rank, and unlocked characters below.
-        </Typography>
-
-        <Box component="form" onSubmit={handleSubmit}>
-          <Divider sx={{ my: 4 }} />
-
-          <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>League of Legends</Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField fullWidth required label="Level" name="lol.level" type="number" value={account.lol.level} onChange={handleChange} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField select fullWidth required label="Rank" name="lol.rank" value={account.lol.rank} onChange={handleChange}>
-                {LOL_RANKS.map(rank => (
-                  <MenuItem key={rank} value={rank}>{rank}</MenuItem>
-                ))}
-              </TextField>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="h6" sx={{ color: 'secondary.main', mb: 2 }}>TFT</Typography>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <TextField 
+                  select size="small" label="TFT Rang" 
+                  value={account.tft?.rank || 'Unranked'} 
+                  onChange={(e) => handleChange(account.id!, 'tft.rank', e.target.value)}
+                >
+                  {TFT_RANKS.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                </TextField>
+              </Box>
             </Grid>
           </Grid>
 
-          <CharacterSelector 
-            title="Unlocked Champions"
-            characters={formattedChampions}
-            selectedIds={account.lol.champions}
-            onChange={(ids) => setAccount(prev => prev ? ({ ...prev, lol: { ...prev.lol, champions: ids } }) : prev)}
-          />
-
-          <Divider sx={{ my: 4 }} />
-
-          <Typography variant="h6" sx={{ mb: 2, color: 'error.main' }}>Valorant</Typography>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField fullWidth required label="Level" name="valorant.level" type="number" value={account.valorant.level} onChange={handleChange} />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField select fullWidth required label="Rank" name="valorant.rank" value={account.valorant.rank} onChange={handleChange}>
-                {VALORANT_RANKS.map(rank => (
-                  <MenuItem key={rank} value={rank}>{rank}</MenuItem>
-                ))}
-              </TextField>
-            </Grid>
-          </Grid>
-
-          <CharacterSelector 
-            title="Unlocked Agents"
-            characters={formattedAgents}
-            selectedIds={account.valorant.characters}
-            onChange={(ids) => setAccount(prev => prev ? ({ ...prev, valorant: { ...prev.valorant, characters: ids } }) : prev)}
-          />
-
-          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-            <Button type="submit" variant="contained" size="large" disabled={saving}>
-              {saving ? 'Saving...' : 'Update Account Progress'}
+          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button 
+              variant="contained" 
+              onClick={() => handleUpdateAccount(account)}
+              disabled={saving === account.id}
+            >
+              {saving === account.id ? 'Speichert...' : 'Schnell-Update Speichern'}
             </Button>
           </Box>
-        </Box>
-      </Paper>
+        </Paper>
+      ))}
+
+      {/* Character Edit Dialog */}
+      <Dialog 
+        open={!!editCharactersModal} 
+        onClose={() => setEditCharactersModal(null)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Charaktere bearbeiten</DialogTitle>
+        <DialogContent dividers>
+          {editCharactersModal && (
+            <CharacterSelector
+              title={editCharactersModal.game === 'lol' ? "Champions" : "Agenten"}
+              characters={editCharactersModal.game === 'lol' ? formattedChampions : formattedAgents}
+              selectedIds={
+                (editCharactersModal.game === 'lol' 
+                  ? accounts.find(a => a.id === editCharactersModal.accountId)?.lol?.champions 
+                  : accounts.find(a => a.id === editCharactersModal.accountId)?.valorant?.characters) || []
+              }
+              onChange={(ids) => {
+                const field = editCharactersModal.game === 'lol' ? 'lol.champions' : 'valorant.characters';
+                handleChange(editCharactersModal.accountId, field, ids);
+              }}
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditCharactersModal(null)} variant="contained">Fertig</Button>
+        </DialogActions>
+      </Dialog>
+
     </Container>
   );
 };
