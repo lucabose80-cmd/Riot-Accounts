@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserAccounts, deleteAccount } from '../services/db';
-import { RiotAccount } from '../types';
+import type { RiotAccount } from '../types';
 import { auth } from '../firebase';
 import { 
   Container, Typography, Button, Card, CardContent, CardActions, 
@@ -90,10 +90,10 @@ export const Dashboard: React.FC = () => {
         ) : (
           <Grid container spacing={3}>
             {accounts.map((acc) => (
-              <Grid item xs={12} md={6} lg={4} key={acc.id}>
+              <Grid size={{ xs: 12, md: 6, lg: 4 }} key={acc.id}>
                 <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                   <CardContent sx={{ flexGrow: 1 }}>
-                    <Typography variant="h5" component="h2" gutterBottom fontWeight="bold">
+                    <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 'bold' }}>
                       {acc.ingameName} #{acc.tag}
                     </Typography>
                     <Typography color="text.secondary" gutterBottom>

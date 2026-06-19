@@ -8,6 +8,7 @@ export interface Champion {
     sprite: string;
   };
   tags: string[]; // Roles like Fighter, Mage, etc.
+  imageUrl?: string;
 }
 
 export interface Agent {

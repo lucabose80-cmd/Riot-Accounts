@@ -1,6 +1,6 @@
-import { collection, doc, addDoc, updateDoc, getDocs, getDoc, query, where, deleteDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, getDocs, query, where, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { RiotAccount } from '../types';
+import type { RiotAccount } from '../types';
 
 const ACCOUNTS_COLLECTION = 'accounts';
 

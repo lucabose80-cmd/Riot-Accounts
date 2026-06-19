@@ -86,7 +86,7 @@ export const CharacterSelector: React.FC<CharacterSelectorProps> = ({ characters
         {filteredCharacters.map(char => {
           const isSelected = selectedIds.includes(char.id);
           return (
-            <Grid item key={char.id}>
+            <Grid key={char.id}>
               <Box 
                 onClick={() => toggleCharacter(char.id)}
                 sx={{ 

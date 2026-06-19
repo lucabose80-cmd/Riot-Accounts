@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { getAccountByShareId, updateAccount } from '../services/db';
-import { fetchLoLChampions, fetchValorantAgents, Champion, Agent } from '../services/api';
-import { RiotAccount, LOL_RANKS, VALORANT_RANKS } from '../types';
+import { fetchLoLChampions, fetchValorantAgents } from '../services/api';
+import type { Champion, Agent } from '../services/api';
+import { LOL_RANKS, VALORANT_RANKS } from '../types';
+import type { RiotAccount } from '../types';
 import { CharacterSelector } from '../components/CharacterSelector';
 import { 
   Container, Typography, TextField, Button, Box, Paper, 
@@ -120,7 +122,7 @@ export const ShareView: React.FC = () => {
   if (!account) return null;
 
   const formattedChampions = champions.map(c => ({
-    id: c.id, name: c.name, imageUrl: c.imageUrl, roles: c.tags
+    id: c.id, name: c.name, imageUrl: c.imageUrl || '', roles: c.tags
   }));
 
   const formattedAgents = agents.map(a => ({
@@ -129,7 +131,7 @@ export const ShareView: React.FC = () => {
 
   return (
     <Container maxWidth="md" sx={{ mt: 8, mb: 8 }}>
-      <Dialog open={showNameDialog} disableEscapeKeyDown>
+      <Dialog open={showNameDialog}>
         <DialogTitle>Who are you?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2 }}>
@@ -157,17 +159,17 @@ export const ShareView: React.FC = () => {
         
         <Box sx={{ bgcolor: 'background.default', p: 3, borderRadius: 2, mb: 4, mt: 3 }}>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Typography variant="caption" color="text.secondary">Ingame Name</Typography>
-              <Typography variant="body1" fontWeight="bold">{account.ingameName} #{account.tag}</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName} #{account.tag}</Typography>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Typography variant="caption" color="text.secondary">Login Name</Typography>
-              <Typography variant="body1" fontWeight="bold">{account.loginName}</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.loginName}</Typography>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <Typography variant="caption" color="text.secondary">Password</Typography>
-              <Typography variant="body1" fontWeight="bold">{account.password || 'Not provided'}</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.password || 'Not provided'}</Typography>
             </Grid>
           </Grid>
         </Box>
@@ -184,10 +186,10 @@ export const ShareView: React.FC = () => {
 
           <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>League of Legends</Typography>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth required label="Level" name="lol.level" type="number" value={account.lol.level} onChange={handleChange} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField select fullWidth required label="Rank" name="lol.rank" value={account.lol.rank} onChange={handleChange}>
                 {LOL_RANKS.map(rank => (
                   <MenuItem key={rank} value={rank}>{rank}</MenuItem>
@@ -207,10 +209,10 @@ export const ShareView: React.FC = () => {
 
           <Typography variant="h6" sx={{ mb: 2, color: 'error.main' }}>Valorant</Typography>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth required label="Level" name="valorant.level" type="number" value={account.valorant.level} onChange={handleChange} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField select fullWidth required label="Rank" name="valorant.rank" value={account.valorant.rank} onChange={handleChange}>
                 {VALORANT_RANKS.map(rank => (
                   <MenuItem key={rank} value={rank}>{rank}</MenuItem>

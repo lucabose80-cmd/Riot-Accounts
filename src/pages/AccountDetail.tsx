@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getAccountByShareId, createAccount, updateAccount, getUserAccounts } from '../services/db';
-import { fetchLoLChampions, fetchValorantAgents, Champion, Agent } from '../services/api';
-import { RiotAccount, LOL_RANKS, VALORANT_RANKS } from '../types';
+import { createAccount, updateAccount, getUserAccounts } from '../services/db';
+import { fetchLoLChampions, fetchValorantAgents } from '../services/api';
+import type { Champion, Agent } from '../services/api';
+import { LOL_RANKS, VALORANT_RANKS } from '../types';
+import type { RiotAccount } from '../types';
 import { CharacterSelector } from '../components/CharacterSelector';
 import { 
   Container, Typography, TextField, Button, Box, Paper, 
@@ -124,7 +126,7 @@ export const AccountDetail: React.FC = () => {
   const formattedChampions = champions.map(c => ({
     id: c.id,
     name: c.name,
-    imageUrl: c.imageUrl,
+    imageUrl: c.imageUrl || '',
     roles: c.tags
   }));
 
@@ -151,19 +153,19 @@ export const AccountDetail: React.FC = () => {
         <Box component="form" onSubmit={handleSubmit}>
           <Typography variant="h6" sx={{ mt: 2, mb: 2, color: 'primary.main' }}>General Information</Typography>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth required label="Ingame Name" name="ingameName" value={account.ingameName || ''} onChange={handleChange} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth required label="Tagline (e.g. EUW)" name="tag" value={account.tag || ''} onChange={handleChange} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth required label="Login Name" name="loginName" value={account.loginName || ''} onChange={handleChange} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth label="Password" name="password" type="password" value={account.password || ''} onChange={handleChange} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <TextField fullWidth required label="Email Address" name="email" type="email" value={account.email || ''} onChange={handleChange} />
             </Grid>
           </Grid>
@@ -172,10 +174,10 @@ export const AccountDetail: React.FC = () => {
 
           <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>League of Legends</Typography>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth required label="Level" name="lol.level" type="number" value={account.lol?.level || 1} onChange={handleChange} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField select fullWidth required label="Rank" name="lol.rank" value={account.lol?.rank || 'Unranked'} onChange={handleChange}>
                 {LOL_RANKS.map(rank => (
                   <MenuItem key={rank} value={rank}>{rank}</MenuItem>
@@ -195,10 +197,10 @@ export const AccountDetail: React.FC = () => {
 
           <Typography variant="h6" sx={{ mb: 2, color: 'error.main' }}>Valorant</Typography>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth required label="Level" name="valorant.level" type="number" value={account.valorant?.level || 1} onChange={handleChange} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField select fullWidth required label="Rank" name="valorant.rank" value={account.valorant?.rank || 'Unranked'} onChange={handleChange}>
                 {VALORANT_RANKS.map(rank => (
                   <MenuItem key={rank} value={rank}>{rank}</MenuItem>
