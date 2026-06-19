@@ -9,7 +9,7 @@ import { CharacterSelector } from '../components/CharacterSelector';
 import { generateHistoryDiff } from '../utils/history';
 import { 
   Container, Typography, TextField, Button, Box, Paper, 
-  MenuItem, CircularProgress, Alert, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip,
+  CircularProgress, Alert, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton
 } from '@mui/material';
 import { Plus, Minus } from 'lucide-react';
@@ -154,12 +154,30 @@ export const ShareView: React.FC = () => {
   };
 
   const LevelInput = ({ value, onChange }: { value: number, onChange: (v: number) => void }) => (
-    <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 0.5 }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 0.5, height: 32 }}>
       <IconButton size="small" onClick={() => onChange(Math.max(1, value - 1))}><Minus size={14} /></IconButton>
       <Typography variant="body2" sx={{ width: 30, textAlign: 'center', fontWeight: 'bold' }}>{value}</Typography>
       <IconButton size="small" onClick={() => onChange(value + 1)}><Plus size={14} /></IconButton>
     </Box>
   );
+
+  const RankInput = ({ value, options, onChange }: { value: string, options: string[], onChange: (v: string) => void }) => {
+    const currentIndex = options.indexOf(value);
+    const handlePrev = () => {
+      if (currentIndex > 0) onChange(options[currentIndex - 1]);
+    };
+    const handleNext = () => {
+      if (currentIndex < options.length - 1 && currentIndex !== -1) onChange(options[currentIndex + 1]);
+      else if (currentIndex === -1) onChange(options[0]);
+    };
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 0.5, height: 32 }}>
+        <IconButton size="small" onClick={handlePrev} disabled={currentIndex <= 0}><Minus size={14} /></IconButton>
+        <Typography variant="body2" sx={{ minWidth: 90, textAlign: 'center', fontWeight: 'bold' }}>{value}</Typography>
+        <IconButton size="small" onClick={handleNext} disabled={currentIndex >= options.length - 1}><Plus size={14} /></IconButton>
+      </Box>
+    );
+  };
 
   const renderCharacters = (ids: string[], game: 'lol' | 'valorant', onClick: () => void) => {
     const maxChars = game === 'lol' ? champions.length : agents.length;
@@ -263,9 +281,7 @@ export const ShareView: React.FC = () => {
                       <LevelInput value={account.lol.level} onChange={(v) => handleChange(account.id!, 'lol.level', v)} />
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         {renderRankIcon('lol', account.lol.rank)}
-                        <TextField select size="small" variant="standard" value={account.lol.rank} onChange={(e) => handleChange(account.id!, 'lol.rank', e.target.value)}>
-                          {LOL_RANKS.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-                        </TextField>
+                        <RankInput value={account.lol.rank} options={LOL_RANKS} onChange={(v) => handleChange(account.id!, 'lol.rank', v)} />
                       </Box>
                     </Box>
                     {renderCharacters(account.lol.champions, 'lol', () => setEditCharactersModal({ accountId: account.id!, game: 'lol' }))}
@@ -276,9 +292,7 @@ export const ShareView: React.FC = () => {
                       <LevelInput value={account.valorant.level} onChange={(v) => handleChange(account.id!, 'valorant.level', v)} />
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         {renderRankIcon('valorant', account.valorant.rank)}
-                        <TextField select size="small" variant="standard" value={account.valorant.rank} onChange={(e) => handleChange(account.id!, 'valorant.rank', e.target.value)}>
-                          {VALORANT_RANKS.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-                        </TextField>
+                        <RankInput value={account.valorant.rank} options={VALORANT_RANKS} onChange={(v) => handleChange(account.id!, 'valorant.rank', v)} />
                       </Box>
                     </Box>
                     {renderCharacters(account.valorant.characters, 'valorant', () => setEditCharactersModal({ accountId: account.id!, game: 'valorant' }))}
@@ -287,9 +301,7 @@ export const ShareView: React.FC = () => {
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       {renderRankIcon('tft', account.tft?.rank || 'Unranked')}
-                      <TextField select size="small" variant="standard" value={account.tft?.rank || 'Unranked'} onChange={(e) => handleChange(account.id!, 'tft.rank', e.target.value)}>
-                        {TFT_RANKS.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-                      </TextField>
+                      <RankInput value={account.tft?.rank || 'Unranked'} options={TFT_RANKS} onChange={(v) => handleChange(account.id!, 'tft.rank', v)} />
                     </Box>
                   </TableCell>
 
