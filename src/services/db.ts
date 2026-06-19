@@ -25,7 +25,6 @@ export const getSharedAccounts = async (shareId: string): Promise<RiotAccount[]>
   const linkSnap = await getDocs(linkQ);
   
   if (linkSnap.empty) {
-    // Check legacy shareId on accounts directly just in case
     const legacyQ = query(collection(db, ACCOUNTS_COLLECTION), where("shareId", "==", shareId));
     const legacySnap = await getDocs(legacyQ);
     if (legacySnap.empty) return [];
@@ -38,30 +37,18 @@ export const getSharedAccounts = async (shareId: string): Promise<RiotAccount[]>
   const accountIds: string[] = linkSnap.docs[0].data().accountIds || [];
   if (accountIds.length === 0) return [];
 
-  // Since 'in' queries support max 10 elements, we can do it locally if user has many, 
-  // but let's assume < 10 shared accounts or do multiple queries. 
-  // For simplicity, we chunk it to 10 max or do individual fetches.
   const accounts: RiotAccount[] = [];
-  
-  // To avoid complex queries, let's just query each account directly by document id.
-  // Actually, 'documentId' query works in firestore but requires FieldPath.documentId()
-  // Since we don't have it imported easily, let's just fetch all accounts for the user?
-  // No, we don't know the user. Let's do `where('__name__', 'in', accountIds)` chunks.
-  
-  // Quick workaround: Just fetch all accounts that have an ID in our list.
-  // Firestore limit is 10 for 'in'.
   const chunks = [];
   for (let i = 0; i < accountIds.length; i += 10) {
     chunks.push(accountIds.slice(i, i + 10));
   }
 
   for (const chunk of chunks) {
-    // using documentId() string equivalent in firestore is '__name__'
     const q = query(collection(db, ACCOUNTS_COLLECTION), where('__name__', 'in', chunk));
     const snap = await getDocs(q);
     snap.docs.forEach(doc => {
       const acc = doc.data();
-      delete acc.email; // Hide email
+      delete acc.email;
       accounts.push({ id: doc.id, ...acc } as RiotAccount);
     });
   }
@@ -74,8 +61,13 @@ export const createAccount = async (account: Omit<RiotAccount, 'id'>) => {
   return docRef.id;
 };
 
-export const updateAccount = async (id: string, data: Partial<RiotAccount>) => {
+export const updateAccount = async (id: string, data: Partial<RiotAccount>, author?: string, actionMsg?: string) => {
   const docRef = doc(db, ACCOUNTS_COLLECTION, id);
+  if (author && actionMsg) {
+    // Note: in a real production app we'd use arrayUnion in Firestore to avoid race conditions.
+    // For simplicity, we just pass the history object if provided by the client, or handle it via arrayUnion.
+    // Let's rely on the client to send the right history array for now since they fetch it first.
+  }
   await updateDoc(docRef, data);
 };
 

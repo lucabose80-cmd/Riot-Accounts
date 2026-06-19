@@ -1,60 +1,63 @@
+const LOL_VERSION = '14.11.1'; 
+const LOL_API_URL = `https://ddragon.leagueoflegends.com/cdn/${LOL_VERSION}/data/en_US/champion.json`;
+const VALO_API_URL = 'https://valorant-api.com/v1/agents?isPlayableCharacter=true';
+const VALO_TIERS_URL = 'https://valorant-api.com/v1/competitivetiers';
+
 export interface Champion {
   id: string;
-  key: string;
   name: string;
-  title: string;
   image: {
     full: string;
     sprite: string;
   };
-  tags: string[]; // Roles like Fighter, Mage, etc.
+  tags: string[]; 
   imageUrl?: string;
 }
 
 export interface Agent {
   uuid: string;
   displayName: string;
-  description: string;
   displayIcon: string;
   role: {
-    uuid: string;
     displayName: string;
-    displayIcon: string;
-  } | null;
+  };
 }
 
 export const fetchLoLChampions = async (): Promise<Champion[]> => {
-  try {
-    // Get latest version
-    const versionRes = await fetch('https://ddragon.leagueoflegends.com/api/versions.json');
-    const versions = await versionRes.json();
-    const latestVersion = versions[0];
-
-    // Fetch champions
-    const res = await fetch(`https://ddragon.leagueoflegends.com/cdn/${latestVersion}/data/en_US/champion.json`);
-    const data = await res.json();
-    
-    // Transform object map to array
-    const championsArray: Champion[] = Object.values(data.data);
-    
-    // Append full image URL
-    return championsArray.map(champ => ({
-      ...champ,
-      imageUrl: `https://ddragon.leagueoflegends.com/cdn/${latestVersion}/img/champion/${champ.image.full}`
-    }));
-  } catch (error) {
-    console.error("Error fetching LoL champions:", error);
-    return [];
-  }
+  const res = await fetch(LOL_API_URL);
+  const data = await res.json();
+  return Object.values(data.data).map((champ: any) => ({
+    ...champ,
+    imageUrl: `https://ddragon.leagueoflegends.com/cdn/${LOL_VERSION}/img/champion/${champ.image.full}`
+  }));
 };
 
 export const fetchValorantAgents = async (): Promise<Agent[]> => {
+  const res = await fetch(VALO_API_URL);
+  const data = await res.json();
+  return data.data;
+};
+
+let valoRankMapCache: Record<string, string> | null = null;
+
+export const fetchValorantRanksMap = async (): Promise<Record<string, string>> => {
+  if (valoRankMapCache) return valoRankMapCache;
   try {
-    const res = await fetch('https://valorant-api.com/v1/agents?isPlayableCharacter=true');
+    const res = await fetch(VALO_TIERS_URL);
     const data = await res.json();
-    return data.data;
-  } catch (error) {
-    console.error("Error fetching Valorant agents:", error);
-    return [];
+    const episode = data.data[data.data.length - 1]; // Latest episode
+    const map: Record<string, string> = {};
+    for (const tier of episode.tiers) {
+      if (tier.tierName && tier.largeIcon) {
+        // e.g. "GOLD 1"
+        const formattedName = tier.tierName.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+        map[formattedName] = tier.largeIcon;
+      }
+    }
+    valoRankMapCache = map;
+    return map;
+  } catch (err) {
+    console.error('Failed to load valorant ranks', err);
+    return {};
   }
 };

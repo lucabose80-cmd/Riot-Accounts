@@ -1,3 +1,9 @@
+export interface HistoryEntry {
+  timestamp: number;
+  user: string;
+  action: string;
+}
+
 export interface RiotAccount {
   id?: string;
   userId: string;
@@ -19,8 +25,9 @@ export interface RiotAccount {
   tft: {
     rank: string;
   };
-  shareId?: string; // Legacy, optional now since we use shared_links collection
+  shareId?: string; // Legacy
   lastAccessedBy?: string;
+  history?: HistoryEntry[];
 }
 
 const buildLolRanks = () => {
@@ -51,22 +58,15 @@ const buildValoRanks = () => {
 
 export const LOL_RANKS = buildLolRanks();
 export const VALORANT_RANKS = buildValoRanks();
-export const TFT_RANKS = buildLolRanks(); // TFT shares the same structure as LoL
+export const TFT_RANKS = buildLolRanks();
 
-// Helper to get Rank icon
 export const getRankIcon = (rank: string, game: 'lol' | 'valorant' | 'tft'): string | null => {
   if (!rank || rank === 'Unranked') return null;
   const baseTier = rank.split(' ')[0].toLowerCase();
   
   if (game === 'lol' || game === 'tft') {
-    return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-shared-components/global/default/images/ranked-mini-crests/${baseTier}.png`;
+    return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-emblem/emblem-${baseTier}.png`;
   }
   
-  // For Valorant we can use a static mapping or use valorant-api assets
-  // Valo API has competitive tiers but getting them requires a complex mapping or fetching.
-  // For simplicity, we use a public repository or just the text if we can't find it.
-  // Actually, Valo API provides icons for all tiers. 
-  // Let's rely on a known public source or just fallback to text for now.
-  // We can fetch from valorant-api in a component, or use a known static map.
-  return null; // Handled in UI component dynamically if needed
+  return null; 
 };

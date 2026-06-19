@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Box, Typography, Avatar, Chip, TextField, Button } from '@mui/material';
+import { Box, Typography, Avatar, Chip, TextField, Button, MenuItem } from '@mui/material';
 
 interface Character {
   id: string;
@@ -18,6 +18,7 @@ interface CharacterSelectorProps {
 export const CharacterSelector: React.FC<CharacterSelectorProps> = ({ characters, selectedIds, onChange, title }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'name' | 'role' | 'selected'>('selected');
 
   const allRoles = useMemo(() => {
     const roles = new Set<string>();
@@ -33,13 +34,22 @@ export const CharacterSelector: React.FC<CharacterSelectorProps> = ({ characters
         return matchesSearch && matchesRole;
       })
       .sort((a, b) => {
-        const aSelected = selectedIds.includes(a.id);
-        const bSelected = selectedIds.includes(b.id);
-        if (aSelected && !bSelected) return -1;
-        if (!aSelected && bSelected) return 1;
-        return a.name.localeCompare(b.name);
+        if (sortBy === 'selected') {
+          const aSelected = selectedIds.includes(a.id);
+          const bSelected = selectedIds.includes(b.id);
+          if (aSelected && !bSelected) return -1;
+          if (!aSelected && bSelected) return 1;
+          return a.name.localeCompare(b.name);
+        } else if (sortBy === 'role') {
+          const aRole = a.roles[0] || '';
+          const bRole = b.roles[0] || '';
+          if (aRole === bRole) return a.name.localeCompare(b.name);
+          return aRole.localeCompare(bRole);
+        } else {
+          return a.name.localeCompare(b.name);
+        }
       });
-  }, [characters, selectedIds, searchTerm, selectedRole]);
+  }, [characters, selectedIds, searchTerm, selectedRole, sortBy]);
 
   const toggleCharacter = (id: string) => {
     if (selectedIds.includes(id)) {
@@ -71,9 +81,21 @@ export const CharacterSelector: React.FC<CharacterSelectorProps> = ({ characters
           placeholder="Suchen..." 
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          sx={{ minWidth: 200 }}
+          sx={{ minWidth: 150 }}
         />
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+        <TextField 
+          select 
+          size="small" 
+          value={sortBy} 
+          onChange={(e) => setSortBy(e.target.value as any)}
+          sx={{ minWidth: 150 }}
+        >
+          <MenuItem value="selected">Meine Oben</MenuItem>
+          <MenuItem value="name">Nach Name</MenuItem>
+          <MenuItem value="role">Nach Rolle</MenuItem>
+        </TextField>
+
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', flexGrow: 1 }}>
           <Chip 
             label="Alle Rollen" 
             onClick={() => setSelectedRole(null)} 
@@ -90,7 +112,7 @@ export const CharacterSelector: React.FC<CharacterSelectorProps> = ({ characters
             />
           ))}
         </Box>
-        <Box sx={{ flexGrow: 1 }} />
+        
         <Button size="small" variant="outlined" onClick={handleSelectAll}>Alle Auswählen</Button>
         <Button size="small" variant="outlined" color="error" onClick={handleDeselectAll}>Alle Abwählen</Button>
       </Box>

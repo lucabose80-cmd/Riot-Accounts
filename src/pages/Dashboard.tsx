@@ -3,15 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getUserAccounts, deleteAccount, createSharedLink } from '../services/db';
 import { getRankIcon } from '../types';
-import type { RiotAccount } from '../types';
+import type { RiotAccount, HistoryEntry } from '../types';
 import { auth } from '../firebase';
-import { fetchLoLChampions, fetchValorantAgents } from '../services/api';
+import { fetchLoLChampions, fetchValorantAgents, fetchValorantRanksMap } from '../services/api';
 import type { Champion, Agent } from '../services/api';
 import { 
   Container, Typography, Button, Card, CardContent, CardActions, 
-  Grid, Box, IconButton, Tooltip, CircularProgress, AppBar, Toolbar, Checkbox
+  Grid, Box, IconButton, Tooltip, CircularProgress, AppBar, Toolbar, Checkbox,
+  Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText, Divider
 } from '@mui/material';
-import { Plus, LogOut, Edit, Share2, Trash2 } from 'lucide-react';
+import { Plus, LogOut, Edit, Share2, Trash2, History } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -22,6 +23,9 @@ export const Dashboard: React.FC = () => {
   
   const [champions, setChampions] = useState<Champion[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [valoRankMap, setValoRankMap] = useState<Record<string, string>>({});
+
+  const [historyModal, setHistoryModal] = useState<HistoryEntry[] | null>(null);
 
   const fetchAccounts = async () => {
     if (!currentUser) return;
@@ -39,12 +43,14 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     const loadGlobals = async () => {
       try {
-        const [champs, agts] = await Promise.all([
+        const [champs, agts, vRanks] = await Promise.all([
           fetchLoLChampions(),
-          fetchValorantAgents()
+          fetchValorantAgents(),
+          fetchValorantRanksMap()
         ]);
         setChampions(champs);
         setAgents(agts);
+        setValoRankMap(vRanks);
       } catch (err) {
         console.error("Failed to fetch globals", err);
       }
@@ -79,7 +85,7 @@ export const Dashboard: React.FC = () => {
       const url = `${window.location.origin}/share/${shareId}`;
       navigator.clipboard.writeText(url);
       alert('Share-Link für ausgewählte Accounts wurde in die Zwischenablage kopiert!');
-      setSelectedAccounts([]); // Reset
+      setSelectedAccounts([]);
     } catch (err) {
       console.error(err);
       alert('Fehler beim Erstellen des Share-Links.');
@@ -87,7 +93,13 @@ export const Dashboard: React.FC = () => {
   };
 
   const renderRank = (game: 'lol' | 'valorant' | 'tft', rank: string, level?: number) => {
-    const iconUrl = getRankIcon(rank, game);
+    let iconUrl = null;
+    if (game === 'valorant') {
+      iconUrl = valoRankMap[rank] || null;
+    } else {
+      iconUrl = getRankIcon(rank, game);
+    }
+    
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         {iconUrl && (
@@ -104,40 +116,47 @@ export const Dashboard: React.FC = () => {
   const renderCharacters = (ids: string[], game: 'lol' | 'valorant') => {
     if (!ids || ids.length === 0) return <Typography variant="caption" color="text.secondary">Keine Charaktere</Typography>;
     
-    // Get up to 10 characters to display to save space
-    const displayIds = ids.slice(0, 10);
-    const hasMore = ids.length > 10;
+    const maxChars = game === 'lol' ? champions.length : agents.length;
     
-    const items = displayIds.map(id => {
-      let img = '';
-      let name = '';
+    if (ids.length >= maxChars && maxChars > 0) {
+      return (
+        <Box sx={{ display: 'inline-flex', mt: 1, alignItems: 'center', bgcolor: 'warning.light', color: 'warning.contrastText', px: 1, py: 0.5, borderRadius: 2, fontSize: '0.75rem', fontWeight: 'bold' }}>
+          🌟 Alle freigeschaltet
+        </Box>
+      );
+    }
+
+    const itemsData = ids.map(id => {
       if (game === 'lol') {
         const c = champions.find(c => c.id === id);
-        img = c?.imageUrl || '';
-        name = c?.name || id;
+        return { id, img: c?.imageUrl || '', name: c?.name || id };
       } else {
         const a = agents.find(a => a.uuid === id);
-        img = a?.displayIcon || '';
-        name = a?.displayName || id;
+        return { id, img: a?.displayIcon || '', name: a?.displayName || id };
       }
-      return (
-        <Tooltip key={id} title={name}>
-          <Box
-            component="img"
-            src={img}
-            alt={name}
-            sx={{ width: 28, height: 28, borderRadius: '50%', border: '2px solid', borderColor: 'divider' }}
-          />
-        </Tooltip>
-      );
     });
 
+    // Sort alphabetically
+    itemsData.sort((a, b) => a.name.localeCompare(b.name));
+
+    const displayItems = itemsData.slice(0, 8);
+    const hasMore = itemsData.length > 8;
+    
     return (
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-        {items}
+        {displayItems.map(item => (
+          <Tooltip key={item.id} title={item.name}>
+            <Box
+              component="img"
+              src={item.img}
+              alt={item.name}
+              sx={{ width: 28, height: 28, borderRadius: '50%', border: '2px solid', borderColor: 'divider' }}
+            />
+          </Tooltip>
+        ))}
         {hasMore && (
           <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'action.selected', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Typography variant="caption">+{ids.length - 10}</Typography>
+            <Typography variant="caption">+{itemsData.length - 8}</Typography>
           </Box>
         )}
       </Box>
@@ -230,16 +249,13 @@ export const Dashboard: React.FC = () => {
                         {renderCharacters(acc.valorant?.characters || [], 'valorant')}
                       </Grid>
                     </Grid>
-
-                    {acc.lastAccessedBy && (
-                      <Box sx={{ mt: 2, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Zuletzt aktualisiert von: <strong>{acc.lastAccessedBy}</strong>
-                        </Typography>
-                      </Box>
-                    )}
                   </CardContent>
-                  <CardActions sx={{ justifyContent: 'flex-end', p: 2, pt: 0 }}>
+                  <CardActions sx={{ justifyContent: 'flex-end', p: 2, pt: 0, borderTop: '1px solid', borderColor: 'divider', mt: 2 }}>
+                    <Tooltip title="Verlauf (Audit Log)">
+                      <IconButton onClick={() => setHistoryModal(acc.history || [])} color="primary">
+                        <History size={20} />
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title="Einzelnen Account bearbeiten">
                       <IconButton onClick={() => navigate(`/account/${acc.id}`)} color="secondary">
                         <Edit size={20} />
@@ -257,6 +273,33 @@ export const Dashboard: React.FC = () => {
           </Grid>
         )}
       </Container>
+
+      {/* History Dialog */}
+      <Dialog open={historyModal !== null} onClose={() => setHistoryModal(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Account Verlauf</DialogTitle>
+        <DialogContent dividers>
+          {historyModal && historyModal.length > 0 ? (
+            <List>
+              {historyModal.map((entry, idx) => (
+                <React.Fragment key={idx}>
+                  <ListItem>
+                    <ListItemText 
+                      primary={`${entry.user} - ${entry.action}`} 
+                      secondary={new Date(entry.timestamp).toLocaleString()} 
+                    />
+                  </ListItem>
+                  {idx < historyModal.length - 1 && <Divider />}
+                </React.Fragment>
+              ))}
+            </List>
+          ) : (
+            <Typography color="text.secondary">Noch keine Änderungen erfasst.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoryModal(null)}>Schließen</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
