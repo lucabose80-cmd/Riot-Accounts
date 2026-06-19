@@ -25,6 +25,8 @@ export interface RiotAccount {
   tft: {
     rank: string;
   };
+  notes?: string;
+  mainRoles?: string[];
   shareId?: string; // Legacy
   lastAccessedBy?: string;
   history?: HistoryEntry[];

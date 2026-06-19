@@ -9,7 +9,7 @@ import type { RiotAccount } from '../types';
 import { CharacterSelector } from '../components/CharacterSelector';
 import { 
   Container, Typography, TextField, Button, Box, Paper, 
-  Grid, MenuItem, CircularProgress, Divider, Alert
+  Grid, MenuItem, CircularProgress, Divider, Alert, Select, OutlinedInput, Checkbox, ListItemText, FormControl, InputLabel
 } from '@mui/material';
 import { ArrowLeft } from 'lucide-react';
 
@@ -34,8 +34,15 @@ export const AccountDetail: React.FC = () => {
     email: '',
     lol: { level: 1, rank: 'Unranked', champions: [] },
     valorant: { level: 1, rank: 'Unranked', characters: [] },
-    tft: { rank: 'Unranked' }
+    tft: { rank: 'Unranked' },
+    notes: '',
+    mainRoles: []
   });
+
+  const AVAILABLE_ROLES = [
+    'Toplane', 'Jungle', 'Midlane', 'ADC', 'Support',
+    'Duelist', 'Initiator', 'Controller', 'Sentinel'
+  ];
 
   useEffect(() => {
     const loadData = async () => {
@@ -119,6 +126,16 @@ export const AccountDetail: React.FC = () => {
     }
   };
 
+  const handleRolesChange = (event: any) => {
+    const {
+      target: { value },
+    } = event;
+    setAccount(prev => ({
+      ...prev,
+      mainRoles: typeof value === 'string' ? value.split(',') : value,
+    }));
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
@@ -171,6 +188,28 @@ export const AccountDetail: React.FC = () => {
             </Grid>
             <Grid size={{ xs: 12 }}>
               <TextField fullWidth required label="E-Mail Adresse" name="email" type="email" value={account.email || ''} onChange={handleChange} />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <FormControl fullWidth>
+                <InputLabel>Main Rollen</InputLabel>
+                <Select
+                  multiple
+                  value={account.mainRoles || []}
+                  onChange={handleRolesChange}
+                  input={<OutlinedInput label="Main Rollen" />}
+                  renderValue={(selected) => selected.join(', ')}
+                >
+                  {AVAILABLE_ROLES.map((role) => (
+                    <MenuItem key={role} value={role}>
+                      <Checkbox checked={(account.mainRoles || []).indexOf(role) > -1} />
+                      <ListItemText primary={role} />
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField fullWidth label="Notizen (optional)" name="notes" multiline rows={3} value={account.notes || ''} onChange={handleChange} placeholder="Z.B. Smurf, Banned bis..." />
             </Grid>
           </Grid>
 

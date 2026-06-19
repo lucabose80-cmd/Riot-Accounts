@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { getUserAccounts, deleteAccount, createSharedLink, updateAccount } from '../services/db';
 import { getRankIcon, LOL_RANKS, VALORANT_RANKS, TFT_RANKS } from '../types';
 import type { RiotAccount, HistoryEntry } from '../types';
@@ -12,12 +13,13 @@ import { generateHistoryDiff } from '../utils/history';
 import { 
   Container, Typography, Button, Box, IconButton, Tooltip, CircularProgress, AppBar, Toolbar, Checkbox,
   Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText, Divider,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Menu, MenuItem
 } from '@mui/material';
-import { Plus, LogOut, Share2, Trash2, History, Minus, Settings } from 'lucide-react';
+import { Plus, LogOut, Share2, Trash2, History, Minus, Settings, Copy, Eye, EyeOff, Palette } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
+  const { setTheme } = useAppTheme();
   const navigate = useNavigate();
   
   const [accounts, setAccounts] = useState<RiotAccount[]>([]);
@@ -33,6 +35,7 @@ export const Dashboard: React.FC = () => {
 
   const [historyModal, setHistoryModal] = useState<HistoryEntry[] | null>(null);
   const [editCharactersModal, setEditCharactersModal] = useState<{ accountId: string, game: 'lol' | 'valorant' } | null>(null);
+  const [themeAnchorEl, setThemeAnchorEl] = useState<null | HTMLElement>(null);
 
   const fetchAccounts = async () => {
     if (!currentUser) return;
@@ -251,6 +254,28 @@ export const Dashboard: React.FC = () => {
     );
   };
 
+  const CredentialField = ({ label, value, isPassword = false }: { label: string, value: string, isPassword?: boolean }) => {
+    const [show, setShow] = useState(false);
+    const handleCopy = () => {
+      navigator.clipboard.writeText(value);
+      alert(`${label} in die Zwischenablage kopiert!`);
+    };
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ width: 45 }}>{label}:</Typography>
+        <Typography variant="body2" sx={{ fontFamily: isPassword && !show ? 'inherit' : 'monospace', fontWeight: 'bold' }}>
+          {isPassword && !show ? '••••••••' : value}
+        </Typography>
+        <IconButton size="small" onClick={handleCopy} sx={{ p: 0.5 }}><Copy size={14} /></IconButton>
+        {isPassword && (
+          <IconButton size="small" onClick={() => setShow(!show)} sx={{ p: 0.5 }}>
+            {show ? <EyeOff size={14} /> : <Eye size={14} />}
+          </IconButton>
+        )}
+      </Box>
+    );
+  };
+
   return (
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
@@ -258,6 +283,14 @@ export const Dashboard: React.FC = () => {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
             Riot Accounts
           </Typography>
+          <IconButton color="inherit" onClick={(e) => setThemeAnchorEl(e.currentTarget)} sx={{ mr: 2 }}>
+            <Palette size={20} />
+          </IconButton>
+          <Menu anchorEl={themeAnchorEl} open={Boolean(themeAnchorEl)} onClose={() => setThemeAnchorEl(null)}>
+            <MenuItem onClick={() => { setTheme('default'); setThemeAnchorEl(null); }}>Standard Dark</MenuItem>
+            <MenuItem onClick={() => { setTheme('hextech'); setThemeAnchorEl(null); }}>Hextech (LoL)</MenuItem>
+            <MenuItem onClick={() => { setTheme('valorant'); setThemeAnchorEl(null); }}>Radiant (Valorant)</MenuItem>
+          </Menu>
           <Button color="inherit" onClick={handleLogout} startIcon={<LogOut size={18} />}>
             Abmelden
           </Button>
@@ -320,9 +353,27 @@ export const Dashboard: React.FC = () => {
                         />
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName}</Typography>
-                        <Typography variant="caption" color="text.secondary">Server: {account.server}</Typography><br/>
-                        <Typography variant="caption" color="text.secondary">Login: {account.loginName}</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName}</Typography>
+                          <IconButton size="small" onClick={() => { navigator.clipboard.writeText(account.ingameName); alert('Name kopiert!'); }} sx={{ p: 0.5 }}><Copy size={14} /></IconButton>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary">Server: {account.server}</Typography>
+                        <Box sx={{ mt: 1 }}>
+                          <CredentialField label="Login" value={account.loginName || ''} />
+                          <CredentialField label="PW" value={account.password || ''} isPassword />
+                        </Box>
+                        {account.mainRoles && account.mainRoles.length > 0 && (
+                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
+                            {account.mainRoles.map(role => (
+                              <Chip key={role} label={role} size="small" color="secondary" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                            ))}
+                          </Box>
+                        )}
+                        {account.notes && (
+                          <Typography variant="caption" color="info.main" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+                            📝 {account.notes}
+                          </Typography>
+                        )}
                       </TableCell>
 
                       <TableCell>

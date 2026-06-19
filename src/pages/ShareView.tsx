@@ -5,17 +5,19 @@ import { fetchLoLChampions, fetchValorantAgents, fetchValorantRanksMap } from '.
 import type { Champion, Agent } from '../services/api';
 import { LOL_RANKS, VALORANT_RANKS, TFT_RANKS, getRankIcon } from '../types';
 import type { RiotAccount, HistoryEntry } from '../types';
+import { useAppTheme } from '../contexts/ThemeContext';
 import { CharacterSelector } from '../components/CharacterSelector';
 import { generateHistoryDiff } from '../utils/history';
 import { 
   Container, Typography, TextField, Button, Box, Paper, 
   CircularProgress, Alert, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip, AppBar, Toolbar, Menu, MenuItem
 } from '@mui/material';
-import { Plus, Minus } from 'lucide-react';
+import { Plus, Minus, Copy, Eye, EyeOff, Palette } from 'lucide-react';
 
 export const ShareView: React.FC = () => {
   const { shareId } = useParams<{ shareId: string }>();
+  const { setTheme } = useAppTheme();
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null); 
@@ -32,6 +34,7 @@ export const ShareView: React.FC = () => {
   const [visitorName, setVisitorName] = useState(() => localStorage.getItem('riot_visitor_name') || '');
   const [showNameDialog, setShowNameDialog] = useState(!localStorage.getItem('riot_visitor_name'));
   const [tempName, setTempName] = useState(visitorName);
+  const [themeAnchorEl, setThemeAnchorEl] = useState<null | HTMLElement>(null);
   
   const [editCharactersModal, setEditCharactersModal] = useState<{ accountId: string, game: 'lol' | 'valorant' } | null>(null);
 
@@ -230,11 +233,53 @@ export const ShareView: React.FC = () => {
     );
   };
 
+  const CredentialField = ({ label, value, isPassword = false }: { label: string, value: string, isPassword?: boolean }) => {
+    const [show, setShow] = useState(false);
+    const handleCopy = () => {
+      navigator.clipboard.writeText(value);
+      alert(`${label} in die Zwischenablage kopiert!`);
+    };
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ width: 45 }}>{label}:</Typography>
+        <Typography variant="body2" sx={{ fontFamily: isPassword && !show ? 'inherit' : 'monospace', fontWeight: 'bold' }}>
+          {isPassword && !show ? '••••••••' : value}
+        </Typography>
+        <IconButton size="small" onClick={handleCopy} sx={{ p: 0.5 }}><Copy size={14} /></IconButton>
+        {isPassword && (
+          <IconButton size="small" onClick={() => setShow(!show)} sx={{ p: 0.5 }}>
+            {show ? <EyeOff size={14} /> : <Eye size={14} />}
+          </IconButton>
+        )}
+      </Box>
+    );
+  };
+
   if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Box>;
   if (error && accounts.length === 0) return <Container maxWidth="md" sx={{ mt: 8 }}><Alert severity="error">{error}</Alert></Container>;
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 8 }}>
+    <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
+      <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
+            Riot Accounts - Shared
+          </Typography>
+          <Typography variant="body2" sx={{ mr: 2, display: { xs: 'none', sm: 'block' } }}>
+            Gast: {visitorName}
+          </Typography>
+          <IconButton color="inherit" onClick={(e) => setThemeAnchorEl(e.currentTarget)} sx={{ mr: 2 }}>
+            <Palette size={20} />
+          </IconButton>
+          <Menu anchorEl={themeAnchorEl} open={Boolean(themeAnchorEl)} onClose={() => setThemeAnchorEl(null)}>
+            <MenuItem onClick={() => { setTheme('default'); setThemeAnchorEl(null); }}>Standard Dark</MenuItem>
+            <MenuItem onClick={() => { setTheme('hextech'); setThemeAnchorEl(null); }}>Hextech (LoL)</MenuItem>
+            <MenuItem onClick={() => { setTheme('valorant'); setThemeAnchorEl(null); }}>Radiant (Valorant)</MenuItem>
+          </Menu>
+        </Toolbar>
+      </AppBar>
+
+      <Container maxWidth="xl" sx={{ mt: 4, mb: 8 }}>
       <Dialog open={showNameDialog}>
         <DialogTitle>Wer bist du?</DialogTitle>
         <DialogContent>
@@ -270,10 +315,27 @@ export const ShareView: React.FC = () => {
               return (
                 <TableRow key={account.id} hover>
                   <TableCell>
-                    <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName}</Typography>
-                    <Typography variant="caption" color="text.secondary">Server: {account.server}</Typography><br/>
-                    <Typography variant="caption" color="text.secondary">Login: {account.loginName}</Typography><br/>
-                    <Typography variant="caption" color="text.secondary">PW: {account.password || '-'}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName}</Typography>
+                      <IconButton size="small" onClick={() => { navigator.clipboard.writeText(account.ingameName); alert('Name kopiert!'); }} sx={{ p: 0.5 }}><Copy size={14} /></IconButton>
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">Server: {account.server}</Typography>
+                    <Box sx={{ mt: 1 }}>
+                      <CredentialField label="Login" value={account.loginName || ''} />
+                      <CredentialField label="PW" value={account.password || ''} isPassword />
+                    </Box>
+                    {account.mainRoles && account.mainRoles.length > 0 && (
+                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
+                        {account.mainRoles.map(role => (
+                          <Chip key={role} label={role} size="small" color="secondary" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+                        ))}
+                      </Box>
+                    )}
+                    {account.notes && (
+                      <Typography variant="caption" color="info.main" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+                        📝 {account.notes}
+                      </Typography>
+                    )}
                   </TableCell>
                   
                   <TableCell>
@@ -347,5 +409,6 @@ export const ShareView: React.FC = () => {
         </DialogActions>
       </Dialog>
     </Container>
+    </Box>
   );
 };
