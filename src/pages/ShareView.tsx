@@ -142,15 +142,17 @@ export const ShareView: React.FC = () => {
 
   const renderRankIcon = (game: 'lol' | 'valorant' | 'tft', rank: string) => {
     let url = null;
-    let size = 40; // LoL and TFT should be 40px
+    let size = 40; 
+    let scale = 1;
     if (game === 'valorant') {
       url = valoRankMap[rank] || null;
-      size = 32; // Valo is fine at 32px
+      size = 32;
     } else {
       url = getRankIcon(rank, game);
+      scale = 1.8; // Scale up LoL/TFT because the images have huge transparent padding
     }
     if (!url) return null;
-    return <img src={url} alt={rank} style={{ width: size, height: size, objectFit: 'contain', marginRight: 8 }} />;
+    return <img src={url} alt={rank} style={{ width: size, height: size, objectFit: 'contain', marginRight: 8, transform: `scale(${scale})` }} />;
   };
 
   const LevelInput = ({ value, onChange }: { value: number, onChange: (v: number) => void }) => (

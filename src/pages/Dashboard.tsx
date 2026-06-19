@@ -164,14 +164,16 @@ export const Dashboard: React.FC = () => {
   const renderRankIcon = (game: 'lol' | 'valorant' | 'tft', rank: string) => {
     let url = null;
     let size = 40; 
+    let scale = 1;
     if (game === 'valorant') {
       url = valoRankMap[rank] || null;
       size = 32;
     } else {
       url = getRankIcon(rank, game);
+      scale = 1.8;
     }
     if (!url) return null;
-    return <img src={url} alt={rank} style={{ width: size, height: size, objectFit: 'contain', marginRight: 8 }} />;
+    return <img src={url} alt={rank} style={{ width: size, height: size, objectFit: 'contain', marginRight: 8, transform: `scale(${scale})` }} />;
   };
 
   const LevelInput = ({ value, onChange }: { value: number, onChange: (v: number) => void }) => (
