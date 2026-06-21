@@ -3,7 +3,7 @@ const path = require('path');
 const { Jimp } = require('jimp');
 const pngToIco = require('png-to-ico').default || require('png-to-ico');
 
-const srcImage = "C:\\Users\\Luca\\.gemini\\antigravity\\brain\\78c4edac-c8f9-4b30-97fa-2096f628f615\\riot_style_icon_1782065093841.png";
+const srcImage = "C:\\Users\\Luca\\.gemini\\antigravity\\brain\\78c4edac-c8f9-4b30-97fa-2096f628f615\\riot_share_icon_1782065879563.png";
 const destDir = path.join(process.cwd(), 'public');
 
 function writeImage(img, destPath) {
