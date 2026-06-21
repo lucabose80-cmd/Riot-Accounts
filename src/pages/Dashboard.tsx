@@ -123,7 +123,7 @@ export const Dashboard: React.FC = () => {
     if (selectedAccounts.length === 0) return;
     try {
       const shareId = await createSharedLink(selectedAccounts);
-      const url = `${window.location.origin}/share/${shareId}`;
+      const url = `https://riot-accounts.vercel.app/share/${shareId}`;
       navigator.clipboard.writeText(url);
       alert('Share-Link für ausgewählte Accounts wurde in die Zwischenablage kopiert!');
       setSelectedAccounts([]);

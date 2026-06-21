@@ -5,8 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 import electron from 'vite-plugin-electron/simple'
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  base: './',
+export default defineConfig(({ mode }) => ({
+  base: mode === 'electron' ? './' : '/',
   plugins: [
     react(),
     electron({
@@ -48,4 +48,4 @@ export default defineConfig({
       }
     })
   ],
-})
+}));

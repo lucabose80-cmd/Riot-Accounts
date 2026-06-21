@@ -1,5 +1,8 @@
 
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter, BrowserRouter, Routes, Route } from 'react-router-dom';
+
+const isElectron = /electron/i.test(navigator.userAgent);
+const Router = isElectron ? HashRouter : BrowserRouter;
 import { CssBaseline } from '@mui/material';
 import { AppThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
