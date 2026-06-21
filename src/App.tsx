@@ -12,6 +12,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { AccountDetail } from './pages/AccountDetail';
 import { ShareView } from './pages/ShareView';
+import { OverlayView } from './pages/OverlayView';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/share/:shareId" element={<ShareView />} />
+            <Route path="/overlay" element={<OverlayView />} />
             
             {/* Protected Routes */}
             <Route path="/" element={

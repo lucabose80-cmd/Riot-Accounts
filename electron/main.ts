@@ -7,8 +7,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let mainWindow: BrowserWindow | null = null;
+let overlayWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+let currentAccountsData: { own: any[], shared: any[] } = { own: [], shared: [] };
 
 // Auto-Login PowerShell Logic
 const performAutoLogin = (username: string, password: string): Promise<boolean> => {
@@ -96,21 +98,31 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(() => {
-    createWindow();
+    // Silent Autostart Setup
+    const isHidden = process.argv.includes('--hidden');
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      args: ['--hidden']
+    });
+
+    createWindow(isHidden);
+    createOverlayWindow();
+    startRiotWatcher();
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
+        createWindow(false);
       }
     });
   });
 }
 
-function createWindow() {
+function createWindow(isHidden: boolean = false) {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     title: 'Riot Accounts',
+    show: !isHidden,
     autoHideMenuBar: true, // Hide menu bar
     titleBarStyle: 'hidden',
     titleBarOverlay: {
@@ -204,7 +216,11 @@ function createWindow() {
   };
 
   ipcMain.on('update-tray-accounts', (event, accounts) => {
+    currentAccountsData = accounts;
     updateTrayMenu(accounts);
+    if (overlayWindow) {
+      overlayWindow.webContents.send('update-accounts', accounts);
+    }
   });
 
   createTray();
@@ -230,6 +246,88 @@ function createWindow() {
       });
     }
   }
+}
+
+function createOverlayWindow() {
+  overlayWindow = new BrowserWindow({
+    width: 320,
+    height: 480,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    resizable: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.mjs'),
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    overlayWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}#/overlay`);
+  } else {
+    overlayWindow.loadURL(`file://${path.join(__dirname, '../dist/index.html')}#/overlay`);
+  }
+
+  overlayWindow.on('blur', () => {
+    overlayWindow?.hide();
+  });
+}
+
+function startRiotWatcher() {
+  const psScript = `
+    Add-Type @"
+      using System;
+      using System.Runtime.InteropServices;
+      public class Win32 {
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")]
+        public static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
+      }
+"@
+    while($true) {
+      $hwnd = [Win32]::GetForegroundWindow()
+      $pid = 0
+      [Win32]::GetWindowThreadProcessId($hwnd, [ref]$pid) | Out-Null
+      $process = Get-Process -Id $pid -ErrorAction SilentlyContinue
+      if ($process -and $process.Name -eq "RiotClientUx") {
+        Write-Output "RIOT_ACTIVE"
+      } else {
+        Write-Output "RIOT_INACTIVE"
+      }
+      Start-Sleep -Milliseconds 1000
+    }
+  `;
+
+  const watcher = require('child_process').spawn('powershell.exe', ['-NoProfile', '-Command', psScript]);
+  
+  let wasActive = false;
+  watcher.stdout.on('data', (data: any) => {
+    const output = data.toString().trim();
+    if (output.includes('RIOT_ACTIVE')) {
+      if (!wasActive && overlayWindow) {
+        // Find position of RiotClientUx and put overlay near it
+        // For simplicity, we just show it if not shown
+        if (!overlayWindow.isVisible()) {
+          overlayWindow.showInactive();
+          overlayWindow.webContents.send('update-accounts', currentAccountsData);
+        }
+      }
+      wasActive = true;
+    } else if (output.includes('RIOT_INACTIVE')) {
+      if (wasActive && overlayWindow && !overlayWindow.isFocused()) {
+        overlayWindow.hide();
+      }
+      wasActive = false;
+    }
+  });
+
+  app.on('will-quit', () => {
+    watcher.kill();
+  });
 }
 
 app.on('window-all-closed', () => {

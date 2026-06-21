@@ -5,5 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateTray: (accounts: any[]) => ipcRenderer.send('update-tray-accounts', accounts),
   onDeepLink: (callback: (url: string) => void) => {
     ipcRenderer.on('deep-link', (_event, url) => callback(url));
+  },
+  onUpdateAccounts: (callback: (accounts: any) => void) => {
+    ipcRenderer.on('update-accounts', (_event, accounts) => callback(accounts));
   }
 });
