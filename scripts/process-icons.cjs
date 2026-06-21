@@ -21,9 +21,9 @@ async function processIcons() {
   // 1. Generate PWA icons
   const image = await Jimp.read(srcImage);
   
-  await writeImage(image.clone().resize({ w: 192, h: 192 }), path.join(destDir, 'pwa-192x192.png'));
-  await writeImage(image.clone().resize({ w: 512, h: 512 }), path.join(destDir, 'pwa-512x512.png'));
-  await writeImage(image.clone(), path.join(destDir, 'icon.png')); // ensure it's a clean PNG
+  await image.clone().resize({ w: 192, h: 192 }).write(path.join(destDir, 'pwa-192x192.png'));
+  await image.clone().resize({ w: 512, h: 512 }).write(path.join(destDir, 'pwa-512x512.png'));
+  await image.clone().write(path.join(destDir, 'icon.png')); // ensure it's a clean PNG
   
   // 2. Generate icon.ico for Electron/Windows and favicon
   const tempPng = path.join(destDir, 'pwa-512x512.png');
