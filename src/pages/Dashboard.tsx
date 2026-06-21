@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useElectron } from '../hooks/useElectron';
-import { getUserAccounts, deleteAccount, createSharedLink, updateAccount, getSavedSharedLinks, getSharedAccounts } from '../services/db';
+import { getUserAccounts, deleteAccount, createSharedLink, updateAccount, getSavedSharedLinks, getSharedAccounts, removeSharedLink } from '../services/db';
 import { getRankIcon, LOL_RANKS, VALORANT_RANKS, TFT_RANKS } from '../types';
 import type { RiotAccount, HistoryEntry } from '../types';
 import { auth } from '../firebase';
@@ -14,9 +14,10 @@ import { generateHistoryDiff } from '../utils/history';
 import { 
   Container, Typography, Button, Box, IconButton, Tooltip, CircularProgress, AppBar, Toolbar, Checkbox,
   Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText, Divider,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Menu, MenuItem, Card, CardContent, CardActions
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Menu, MenuItem,
+  Tabs, Tab
 } from '@mui/material';
-import { Plus, LogOut, Share2, Trash2, History, Minus, Settings, Copy, Eye, EyeOff, Palette, Rocket, Link } from 'lucide-react';
+import { Plus, LogOut, Share2, Trash2, History, Minus, Settings, Copy, Eye, EyeOff, Palette, Rocket } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -25,8 +26,10 @@ export const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   
   const [accounts, setAccounts] = useState<RiotAccount[]>([]);
-  const [savedShares, setSavedShares] = useState<string[]>([]);
+  const [sharedGroups, setSharedGroups] = useState<{ shareId: string, accounts: RiotAccount[] }[]>([]);
   const [originalAccounts, setOriginalAccounts] = useState<Record<string, RiotAccount>>({});
+  
+  const [tabIndex, setTabIndex] = useState(0);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -53,27 +56,33 @@ export const Dashboard: React.FC = () => {
       setOriginalAccounts(orig);
 
       const shares = await getSavedSharedLinks(currentUser.uid);
-      setSavedShares(shares);
 
       // Collect all accounts for Tray Auto-Login
-      const allTrayAccounts: any[] = [];
+      const ownTrayAccounts: any[] = [];
+      const sharedTrayAccounts: any[] = [];
+
       data.forEach(a => {
         if (a.loginName && a.password) {
-          allTrayAccounts.push({ name: a.ingameName, loginName: a.loginName, password: a.password });
+          ownTrayAccounts.push({ name: a.ingameName, loginName: a.loginName, password: a.password });
         }
       });
-      // Try to load shared accounts too for Tray menu
+      
+      const sGroups: { shareId: string, accounts: RiotAccount[] }[] = [];
+      
+      // Try to load shared accounts
       for (const shareId of shares) {
         try {
           const sAccs = await getSharedAccounts(shareId);
+          sGroups.push({ shareId, accounts: sAccs });
           sAccs.forEach(a => {
             if (a.loginName && a.password) {
-              allTrayAccounts.push({ name: a.ingameName, loginName: a.loginName, password: a.password });
+              sharedTrayAccounts.push({ name: a.ingameName, loginName: a.loginName, password: a.password });
             }
           });
         } catch(e) {}
       }
-      updateTray(allTrayAccounts);
+      setSharedGroups(sGroups);
+      updateTray({ own: ownTrayAccounts, shared: sharedTrayAccounts });
     } catch (error) {
       console.error("Failed to fetch accounts", error);
     } finally {
@@ -108,6 +117,15 @@ export const Dashboard: React.FC = () => {
     if (window.confirm('Möchtest du diesen Account wirklich löschen?')) {
       await deleteAccount(id);
       fetchAccounts();
+    }
+  };
+
+  const handleDeleteShare = async (shareId: string) => {
+    if (window.confirm('Möchtest du diese Freigabeliste wirklich aus deinen gespeicherten Listen entfernen?')) {
+      if (currentUser) {
+        await removeSharedLink(currentUser.uid, shareId);
+        fetchAccounts();
+      }
     }
   };
 
@@ -303,6 +321,135 @@ export const Dashboard: React.FC = () => {
     );
   };
 
+  const renderAccountRow = (account: RiotAccount, isShared: boolean) => {
+    const isDirty = !isShared && originalAccounts[account.id!] && JSON.stringify(account) !== JSON.stringify(originalAccounts[account.id!]);
+    return (
+      <TableRow key={account.id} hover selected={!isShared && selectedAccounts.includes(account.id!)}>
+        {!isShared && (
+          <TableCell padding="checkbox">
+            <Checkbox 
+              checked={selectedAccounts.includes(account.id!)}
+              onChange={() => handleToggleSelect(account.id!)}
+            />
+          </TableCell>
+        )}
+        <TableCell>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName}</Typography>
+            <IconButton size="small" onClick={() => { navigator.clipboard.writeText(account.ingameName); alert('Name kopiert!'); }} sx={{ p: 0.5 }}><Copy size={14} /></IconButton>
+            {isElectron && account.loginName && account.password && (
+              <Button size="small" variant="contained" color="secondary" startIcon={<Rocket size={14} />} onClick={() => autoLogin(account.loginName!, account.password!)}>
+                Auto-Login
+              </Button>
+            )}
+          </Box>
+          <Typography variant="caption" color="text.secondary">Server: {account.server}</Typography>
+          <Box sx={{ mt: 1 }}>
+            <CredentialField label="Login" value={account.loginName || ''} />
+            <CredentialField label="PW" value={account.password || ''} isPassword />
+          </Box>
+          {account.mainRoles && account.mainRoles.length > 0 && (
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
+              {account.mainRoles.map(role => (
+                <Chip key={role} label={role} size="small" color="secondary" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+              ))}
+            </Box>
+          )}
+          {account.notes && (
+            <Typography variant="caption" color="info.main" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+              📝 {account.notes}
+            </Typography>
+          )}
+        </TableCell>
+
+        <TableCell>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+            {isShared ? (
+              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Lvl {account.lol.level}</Typography>
+            ) : (
+              <LevelInput value={account.lol.level} onChange={(v) => handleChange(account.id!, 'lol.level', v)} />
+            )}
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              {renderRankIcon('lol', account.lol.rank)}
+              {isShared ? (
+                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{account.lol.rank}</Typography>
+              ) : (
+                <RankInput value={account.lol.rank} options={LOL_RANKS} onChange={(v) => handleChange(account.id!, 'lol.rank', v)} />
+              )}
+            </Box>
+          </Box>
+          {renderCharacters(account.lol.champions, 'lol', () => { if(!isShared) setEditCharactersModal({ accountId: account.id!, game: 'lol' }) })}
+        </TableCell>
+
+        <TableCell>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+            {isShared ? (
+              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Lvl {account.valorant.level}</Typography>
+            ) : (
+              <LevelInput value={account.valorant.level} onChange={(v) => handleChange(account.id!, 'valorant.level', v)} />
+            )}
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              {renderRankIcon('valorant', account.valorant.rank)}
+              {isShared ? (
+                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{account.valorant.rank}</Typography>
+              ) : (
+                <RankInput value={account.valorant.rank} options={VALORANT_RANKS} onChange={(v) => handleChange(account.id!, 'valorant.rank', v)} />
+              )}
+            </Box>
+          </Box>
+          {renderCharacters(account.valorant.characters, 'valorant', () => { if(!isShared) setEditCharactersModal({ accountId: account.id!, game: 'valorant' }) })}
+        </TableCell>
+
+        <TableCell>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {renderRankIcon('tft', account.tft?.rank || 'Unranked')}
+            {isShared ? (
+              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{account.tft?.rank || 'Unranked'}</Typography>
+            ) : (
+              <RankInput value={account.tft?.rank || 'Unranked'} options={TFT_RANKS} onChange={(v) => handleChange(account.id!, 'tft.rank', v)} />
+            )}
+          </Box>
+        </TableCell>
+
+        <TableCell align="right">
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            {!isShared && (
+              <>
+                <Button 
+                  variant={isDirty ? "contained" : "outlined"} 
+                  color={isDirty ? "primary" : "inherit"}
+                  size="small" 
+                  onClick={() => handleUpdateAccount(account)} 
+                  disabled={saving === account.id || !isDirty}
+                  sx={{ minWidth: 100 }}
+                >
+                  {saving === account.id ? 'Lädt...' : 'Speichern'}
+                </Button>
+                <Tooltip title="Vollständige Account-Details bearbeiten">
+                  <IconButton onClick={() => navigate(`/account/${account.id}`)} color="secondary" size="small">
+                    <Settings size={18} />
+                  </IconButton>
+                </Tooltip>
+              </>
+            )}
+            <Tooltip title="Verlauf (Audit Log)">
+              <IconButton onClick={() => setHistoryModal(account.history || [])} color="primary" size="small">
+                <History size={18} />
+              </IconButton>
+            </Tooltip>
+            {!isShared && (
+              <Tooltip title="Account löschen">
+                <IconButton onClick={() => account.id && handleDelete(account.id)} color="error" size="small">
+                  <Trash2 size={18} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        </TableCell>
+      </TableRow>
+    );
+  };
+
   return (
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
       <AppBar 
@@ -337,9 +484,16 @@ export const Dashboard: React.FC = () => {
       </AppBar>
 
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 4 }}>
+          <Tabs value={tabIndex} onChange={(_, val) => setTabIndex(val)}>
+            <Tab label="Meine Accounts" />
+            <Tab label={`Geteilte Accounts (${sharedGroups.length})`} />
+          </Tabs>
+        </Box>
+
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
           <Typography variant="h4" component="h1">
-            Meine Accounts
+            {tabIndex === 0 ? 'Meine Accounts' : 'Geteilte Accounts'}
           </Typography>
           <Box sx={{ display: 'flex', gap: 2 }}>
             {selectedAccounts.length > 0 && (
@@ -353,165 +507,80 @@ export const Dashboard: React.FC = () => {
           </Box>
         </Box>
 
+
+
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
             <CircularProgress />
           </Box>
-        ) : accounts.length === 0 ? (
-          <Box sx={{ textAlign: 'center', mt: 10 }}>
-            <Typography variant="body1" color="text.secondary">Du hast noch keine Accounts hinzugefügt.</Typography>
-          </Box>
+        ) : tabIndex === 0 ? (
+          accounts.length === 0 ? (
+            <Box sx={{ textAlign: 'center', mt: 10 }}>
+              <Typography variant="body1" color="text.secondary">Du hast noch keine Accounts hinzugefügt.</Typography>
+            </Box>
+          ) : (
+            <TableContainer component={Paper} elevation={3}>
+              <Table sx={{ minWidth: 1000 }}>
+                <TableHead sx={{ bgcolor: 'background.default' }}>
+                  <TableRow>
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        indeterminate={selectedAccounts.length > 0 && selectedAccounts.length < accounts.length}
+                        checked={accounts.length > 0 && selectedAccounts.length === accounts.length}
+                        onChange={(e) => setSelectedAccounts(e.target.checked ? accounts.map(a => a.id!) : [])}
+                      />
+                    </TableCell>
+                    <TableCell>Account</TableCell>
+                    <TableCell>League of Legends</TableCell>
+                    <TableCell>Valorant</TableCell>
+                    <TableCell>TFT</TableCell>
+                    <TableCell align="right">Aktionen</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {accounts.map(acc => renderAccountRow(acc, false))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )
         ) : (
-          <TableContainer component={Paper} elevation={3}>
-            <Table sx={{ minWidth: 1000 }}>
-              <TableHead sx={{ bgcolor: 'background.default' }}>
-                <TableRow>
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      indeterminate={selectedAccounts.length > 0 && selectedAccounts.length < accounts.length}
-                      checked={accounts.length > 0 && selectedAccounts.length === accounts.length}
-                      onChange={(e) => setSelectedAccounts(e.target.checked ? accounts.map(a => a.id!) : [])}
-                    />
-                  </TableCell>
-                  <TableCell>Account</TableCell>
-                  <TableCell>League of Legends</TableCell>
-                  <TableCell>Valorant</TableCell>
-                  <TableCell>TFT</TableCell>
-                  <TableCell align="right">Aktionen</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {accounts.map((account) => {
-                  const isDirty = JSON.stringify(account) !== JSON.stringify(originalAccounts[account.id!]);
-                  return (
-                    <TableRow key={account.id} hover selected={selectedAccounts.includes(account.id!)}>
-                      <TableCell padding="checkbox">
-                        <Checkbox 
-                          checked={selectedAccounts.includes(account.id!)}
-                          onChange={() => handleToggleSelect(account.id!)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                          <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName}</Typography>
-                          <IconButton size="small" onClick={() => { navigator.clipboard.writeText(account.ingameName); alert('Name kopiert!'); }} sx={{ p: 0.5 }}><Copy size={14} /></IconButton>
-                          {isElectron && account.loginName && account.password && (
-                            <Button size="small" variant="contained" color="secondary" startIcon={<Rocket size={14} />} onClick={() => autoLogin(account.loginName, account.password)}>
-                              Auto-Login
-                            </Button>
-                          )}
-                        </Box>
-                        <Typography variant="caption" color="text.secondary">Server: {account.server}</Typography>
-                        <Box sx={{ mt: 1 }}>
-                          <CredentialField label="Login" value={account.loginName || ''} />
-                          <CredentialField label="PW" value={account.password || ''} isPassword />
-                        </Box>
-                        {account.mainRoles && account.mainRoles.length > 0 && (
-                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 1 }}>
-                            {account.mainRoles.map(role => (
-                              <Chip key={role} label={role} size="small" color="secondary" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
-                            ))}
-                          </Box>
-                        )}
-                        {account.notes && (
-                          <Typography variant="caption" color="info.main" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
-                            📝 {account.notes}
-                          </Typography>
-                        )}
-                      </TableCell>
-
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                          <LevelInput value={account.lol.level} onChange={(v) => handleChange(account.id!, 'lol.level', v)} />
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            {renderRankIcon('lol', account.lol.rank)}
-                            <RankInput value={account.lol.rank} options={LOL_RANKS} onChange={(v) => handleChange(account.id!, 'lol.rank', v)} />
-                          </Box>
-                        </Box>
-                        {renderCharacters(account.lol.champions, 'lol', () => setEditCharactersModal({ accountId: account.id!, game: 'lol' }))}
-                      </TableCell>
-
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                          <LevelInput value={account.valorant.level} onChange={(v) => handleChange(account.id!, 'valorant.level', v)} />
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            {renderRankIcon('valorant', account.valorant.rank)}
-                            <RankInput value={account.valorant.rank} options={VALORANT_RANKS} onChange={(v) => handleChange(account.id!, 'valorant.rank', v)} />
-                          </Box>
-                        </Box>
-                        {renderCharacters(account.valorant.characters, 'valorant', () => setEditCharactersModal({ accountId: account.id!, game: 'valorant' }))}
-                      </TableCell>
-
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {renderRankIcon('tft', account.tft?.rank || 'Unranked')}
-                          <RankInput value={account.tft?.rank || 'Unranked'} options={TFT_RANKS} onChange={(v) => handleChange(account.id!, 'tft.rank', v)} />
-                        </Box>
-                      </TableCell>
-
-                      <TableCell align="right">
-                        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                          <Button 
-                            variant={isDirty ? "contained" : "outlined"} 
-                            color={isDirty ? "primary" : "inherit"}
-                            size="small" 
-                            onClick={() => handleUpdateAccount(account)} 
-                            disabled={saving === account.id || !isDirty}
-                            sx={{ minWidth: 100 }}
-                          >
-                            {saving === account.id ? 'Lädt...' : 'Speichern'}
-                          </Button>
-                          <Tooltip title="Vollständige Account-Details bearbeiten">
-                            <IconButton onClick={() => navigate(`/account/${account.id}`)} color="secondary" size="small">
-                              <Settings size={18} />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Verlauf (Audit Log)">
-                            <IconButton onClick={() => setHistoryModal(account.history || [])} color="primary" size="small">
-                              <History size={18} />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Account löschen">
-                            <IconButton onClick={() => account.id && handleDelete(account.id)} color="error" size="small">
-                              <Trash2 size={18} />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-
-        {savedShares.length > 0 && (
-          <Box sx={{ mt: 6 }}>
-            <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
-              Gespeicherte Freigaben
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              {savedShares.map(shareId => (
-                <Card key={shareId} sx={{ minWidth: 275, bgcolor: 'background.paper' }}>
-                  <CardContent>
-                    <Typography variant="h6" component="div">
-                      Freigabe: {shareId}
-                    </Typography>
-                    <Typography sx={{ color: 'text.secondary', mb: 1.5 }}>
-                      Hier klicken um die Accounts dieses Links zu sehen.
-                    </Typography>
-                  </CardContent>
-                  <CardActions>
-                    <Button size="small" startIcon={<Link size={16} />} onClick={() => navigate(`/share/${shareId}`)}>
-                      Öffnen
+          sharedGroups.length === 0 ? (
+            <Box sx={{ textAlign: 'center', mt: 10 }}>
+              <Typography variant="body1" color="text.secondary">Du hast noch keine geteilten Accounts gespeichert.</Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {sharedGroups.map(group => (
+                <Box key={group.shareId} sx={{ bgcolor: 'background.paper', borderRadius: 2, overflow: 'hidden', boxShadow: 3 }}>
+                  <Box sx={{ px: 3, py: 2, bgcolor: 'background.default', borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="h6">Freigabe-Link: {group.shareId}</Typography>
+                    <Button variant="outlined" color="error" startIcon={<Trash2 size={16} />} onClick={() => handleDeleteShare(group.shareId)}>
+                      Freigabe entfernen
                     </Button>
-                  </CardActions>
-                </Card>
+                  </Box>
+                  <TableContainer>
+                    <Table sx={{ minWidth: 1000 }}>
+                      <TableHead sx={{ bgcolor: 'background.paper' }}>
+                        <TableRow>
+                          <TableCell>Account</TableCell>
+                          <TableCell>League of Legends</TableCell>
+                          <TableCell>Valorant</TableCell>
+                          <TableCell>TFT</TableCell>
+                          <TableCell align="right">Aktionen</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {group.accounts.map(acc => renderAccountRow(acc, true))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
               ))}
             </Box>
-          </Box>
+          )
         )}
+
+
       </Container>
 
       {/* History Dialog */}

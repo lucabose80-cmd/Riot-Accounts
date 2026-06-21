@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { getSharedAccounts, updateAccount } from '../services/db';
 import { fetchLoLChampions, fetchValorantAgents, fetchValorantRanksMap } from '../services/api';
 import type { Champion, Agent } from '../services/api';
@@ -23,6 +23,7 @@ export const ShareView: React.FC = () => {
   const { setTheme } = useAppTheme();
   const { isElectron, autoLogin } = useElectron();
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null); 
@@ -332,17 +333,24 @@ export const ShareView: React.FC = () => {
           <Typography variant="h4" component="h1" gutterBottom>
             Freigegebene Accounts
           </Typography>
-          {currentUser && (
-            <Button 
-              variant="contained" 
-              color={isSaved ? "success" : "primary"} 
-              startIcon={<Save />} 
-              onClick={handleSaveShare}
-              disabled={isSaved || savingLink}
-            >
-              {isSaved ? "Gespeichert" : "Freigabe speichern"}
-            </Button>
-          )}
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            {currentUser && (
+              <Button variant="outlined" onClick={() => navigate('/')}>
+                Zurück zum Dashboard
+              </Button>
+            )}
+            {currentUser && (
+              <Button 
+                variant="contained" 
+                color={isSaved ? "success" : "primary"} 
+                startIcon={<Save />} 
+                onClick={handleSaveShare}
+                disabled={isSaved || savingLink}
+              >
+                {isSaved ? "Gespeichert" : "Freigabe speichern"}
+              </Button>
+            )}
+          </Box>
         </Box>
       <Dialog open={showNameDialog}>
         <DialogTitle>Wer bist du?</DialogTitle>

@@ -27,6 +27,16 @@ export const getSavedSharedLinks = async (userId: string): Promise<string[]> => 
   return [];
 };
 
+export const removeSharedLink = async (userId: string, shareId: string) => {
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists()) {
+    const currentShares = userSnap.data().savedShares || [];
+    const newShares = currentShares.filter((id: string) => id !== shareId);
+    await updateDoc(userRef, { savedShares: newShares });
+  }
+};
+
 
 export const getUserAccounts = async (userId: string): Promise<RiotAccount[]> => {
   const q = query(collection(db, ACCOUNTS_COLLECTION), where("userId", "==", userId));

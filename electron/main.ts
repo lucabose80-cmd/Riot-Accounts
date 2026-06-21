@@ -149,14 +149,14 @@ function createWindow() {
     tray = new Tray(icon.resize({ width: 16, height: 16 }));
     tray.setToolTip('Riot Accounts');
     
-    updateTrayMenu([]); // initial empty menu
+    updateTrayMenu({ own: [], shared: [] }); // initial empty menu
     
     tray.on('double-click', () => {
       mainWindow?.show();
     });
   };
 
-  const updateTrayMenu = (accounts: any[]) => {
+  const updateTrayMenu = (data: { own: any[], shared: any[] }) => {
     if (!tray) return;
 
     const template: Electron.MenuItemConstructorOptions[] = [
@@ -164,15 +164,28 @@ function createWindow() {
       { type: 'separator' }
     ];
 
-    if (accounts.length > 0) {
-      template.push({ label: '🚀 Auto-Login:', enabled: false });
-      accounts.forEach(acc => {
-        template.push({
-          label: `   ${acc.name}`,
-          click: () => performAutoLogin(acc.loginName, acc.password).catch(e => console.error(e))
+    if (data.own.length > 0 || data.shared.length > 0) {
+      if (data.own.length > 0) {
+        template.push({ label: 'Meine Accounts:', enabled: false });
+        data.own.forEach(acc => {
+          template.push({
+            label: `   🚀 ${acc.name}`,
+            click: () => performAutoLogin(acc.loginName, acc.password).catch(e => console.error(e))
+          });
         });
-      });
-      template.push({ type: 'separator' });
+        template.push({ type: 'separator' });
+      }
+
+      if (data.shared.length > 0) {
+        template.push({ label: 'Geteilte Accounts:', enabled: false });
+        data.shared.forEach(acc => {
+          template.push({
+            label: `   🚀 ${acc.name}`,
+            click: () => performAutoLogin(acc.loginName, acc.password).catch(e => console.error(e))
+          });
+        });
+        template.push({ type: 'separator' });
+      }
     } else {
       template.push({ label: 'Keine Accounts gefunden', enabled: false });
       template.push({ type: 'separator' });

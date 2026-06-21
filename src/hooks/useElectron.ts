@@ -41,9 +41,9 @@ export const useElectron = () => {
     }
   };
 
-  const updateTray = (accounts: any[]) => {
+  const updateTray = (data: any) => {
     if (isElectron && window.electronAPI) {
-      window.electronAPI.updateTray(accounts);
+      window.electronAPI.updateTray(data);
     }
   };
 
