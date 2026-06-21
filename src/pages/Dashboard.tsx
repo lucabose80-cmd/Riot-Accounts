@@ -63,7 +63,7 @@ export const Dashboard: React.FC = () => {
 
       data.forEach(a => {
         if (a.loginName && a.password) {
-          ownTrayAccounts.push({ name: a.ingameName, loginName: a.loginName, password: a.password });
+          ownTrayAccounts.push({ ...a, name: a.ingameName });
         }
       });
       
@@ -76,7 +76,7 @@ export const Dashboard: React.FC = () => {
           sGroups.push({ shareId, accounts: sAccs });
           sAccs.forEach(a => {
             if (a.loginName && a.password) {
-              sharedTrayAccounts.push({ name: a.ingameName, loginName: a.loginName, password: a.password });
+              sharedTrayAccounts.push({ ...a, name: a.ingameName });
             }
           });
         } catch(e) {}
