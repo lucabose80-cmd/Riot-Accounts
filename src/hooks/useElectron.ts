@@ -41,5 +41,11 @@ export const useElectron = () => {
     }
   };
 
-  return { isElectron, autoLogin };
+  const updateTray = (accounts: any[]) => {
+    if (isElectron && window.electronAPI) {
+      window.electronAPI.updateTray(accounts);
+    }
+  };
+
+  return { isElectron, autoLogin, updateTray };
 };

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../contexts/ThemeContext';
 import { useElectron } from '../hooks/useElectron';
-import { getUserAccounts, deleteAccount, createSharedLink, updateAccount, getSavedSharedLinks } from '../services/db';
+import { getUserAccounts, deleteAccount, createSharedLink, updateAccount, getSavedSharedLinks, getSharedAccounts } from '../services/db';
 import { getRankIcon, LOL_RANKS, VALORANT_RANKS, TFT_RANKS } from '../types';
 import type { RiotAccount, HistoryEntry } from '../types';
 import { auth } from '../firebase';
@@ -21,7 +21,7 @@ import { Plus, LogOut, Share2, Trash2, History, Minus, Settings, Copy, Eye, EyeO
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const { setTheme } = useAppTheme();
-  const { isElectron, autoLogin } = useElectron();
+  const { isElectron, autoLogin, updateTray } = useElectron();
   const navigate = useNavigate();
   
   const [accounts, setAccounts] = useState<RiotAccount[]>([]);
@@ -54,6 +54,26 @@ export const Dashboard: React.FC = () => {
 
       const shares = await getSavedSharedLinks(currentUser.uid);
       setSavedShares(shares);
+
+      // Collect all accounts for Tray Auto-Login
+      const allTrayAccounts: any[] = [];
+      data.forEach(a => {
+        if (a.loginName && a.password) {
+          allTrayAccounts.push({ name: a.ingameName, loginName: a.loginName, password: a.password });
+        }
+      });
+      // Try to load shared accounts too for Tray menu
+      for (const shareId of shares) {
+        try {
+          const sAccs = await getSharedAccounts(shareId);
+          sAccs.forEach(a => {
+            if (a.loginName && a.password) {
+              allTrayAccounts.push({ name: a.ingameName, loginName: a.loginName, password: a.password });
+            }
+          });
+        } catch(e) {}
+      }
+      updateTray(allTrayAccounts);
     } catch (error) {
       console.error("Failed to fetch accounts", error);
     } finally {
