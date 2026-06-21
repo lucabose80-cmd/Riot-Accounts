@@ -19,7 +19,7 @@ export default defineConfig({
     }),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg'],
+      includeAssets: ['icon.png'],
       manifest: {
         name: 'Riot Accounts Manager',
         short_name: 'Riot Accounts',

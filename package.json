@@ -14,15 +14,20 @@
   "build": {
     "appId": "com.riotaccounts.app",
     "productName": "Riot Accounts",
+    "icon": "public/icon.png",
     "directories": {
       "output": "release"
     },
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "protocols": {
       "name": "riot-app",
-      "schemes": ["riot-app"]
+      "schemes": [
+        "riot-app"
+      ]
     }
   },
   "dependencies": {
@@ -49,6 +54,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "jimp": "^1.6.1",
+    "png-to-ico": "^3.0.1",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",

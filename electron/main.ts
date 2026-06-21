@@ -138,9 +138,9 @@ function createWindow() {
   const createTray = () => {
     if (tray) return;
     
-    // Create an empty image for the tray icon (or use a real one if available)
-    const icon = nativeImage.createEmpty();
-    tray = new Tray(icon);
+    const iconPath = path.join(__dirname, '../public/icon.png');
+    const icon = nativeImage.createFromPath(iconPath);
+    tray = new Tray(icon.resize({ width: 16, height: 16 }));
     tray.setToolTip('Riot Accounts');
     
     updateTrayMenu([]); // initial empty menu
