@@ -15,8 +15,17 @@ let currentAccountsData: { own: any[], shared: any[] } = { own: [], shared: [] }
 // Auto-Login PowerShell Logic
 const performAutoLogin = (username: string, password: string): Promise<boolean> => {
   return new Promise((resolve, reject) => {
-    const escapedUser = username.replace(/'/g, "''");
-    const escapedPass = password.replace(/'/g, "''").replace(/"/g, '`"');
+    // Escape for PowerShell string literal AND for SendKeys
+    const escapeSendKeys = (str: string) => {
+      // SendKeys special chars: + ^ % ~ ( ) [ ] { }
+      // We wrap them in braces.
+      const sendKeysEscaped = str.replace(/([+^%~()[\]{}])/g, '{$1}');
+      // Escape single quotes for PowerShell
+      return sendKeysEscaped.replace(/'/g, "''");
+    };
+
+    const escapedUser = escapeSendKeys(username);
+    const escapedPass = escapeSendKeys(password);
     
     const psScript = `
       Add-Type @"
@@ -31,31 +40,31 @@ const performAutoLogin = (username: string, password: string): Promise<boolean> 
         }
 "@
       
-      $riotProcess = Get-Process -Name "RiotClientUx" -ErrorAction SilentlyContinue
+      $riotProcess = Get-Process | Where-Object { $_.MainWindowTitle -match "Riot Client" -or $_.Name -match "RiotClientUx" } | Select-Object -First 1
       if (!$riotProcess) {
         Write-Output "ERROR: Riot Client is not running."
         exit 1
       }
       
-      $hwnd = $riotProcess[0].MainWindowHandle
+      $hwnd = $riotProcess.MainWindowHandle
       if ($hwnd -eq 0) {
         Write-Output "ERROR: Riot Client window not found."
         exit 1
       }
       
-      [Win32]::ShowWindow($hwnd, 9) | Out-Null # Restore if minimized
+      [Win32]::ShowWindow($hwnd, 9) | Out-Null
       [Win32]::SetForegroundWindow($hwnd) | Out-Null
       
       Start-Sleep -Milliseconds 500
       
-      Add-Type -AssemblyName System.Windows.Forms
-      [System.Windows.Forms.SendKeys]::SendWait('${escapedUser}')
+      $wshell = New-Object -ComObject wscript.shell
+      $wshell.SendKeys('${escapedUser}')
       Start-Sleep -Milliseconds 100
-      [System.Windows.Forms.SendKeys]::SendWait('{TAB}')
+      $wshell.SendKeys('{TAB}')
       Start-Sleep -Milliseconds 100
-      [System.Windows.Forms.SendKeys]::SendWait('${escapedPass}')
+      $wshell.SendKeys('${escapedPass}')
       Start-Sleep -Milliseconds 100
-      [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+      $wshell.SendKeys('{ENTER}')
       
       Write-Output "SUCCESS"
     `;
@@ -281,19 +290,27 @@ function startRiotWatcher() {
     Add-Type @"
       using System;
       using System.Runtime.InteropServices;
+      using System.Text;
       public class Win32 {
         [DllImport("user32.dll")]
         public static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")]
         public static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
       }
 "@
     while($true) {
       $hwnd = [Win32]::GetForegroundWindow()
+      $title = New-Object System.Text.StringBuilder 256
+      [Win32]::GetWindowText($hwnd, $title, 256) | Out-Null
+      $windowTitle = $title.ToString()
+
       $pid = 0
       [Win32]::GetWindowThreadProcessId($hwnd, [ref]$pid) | Out-Null
       $process = Get-Process -Id $pid -ErrorAction SilentlyContinue
-      if ($process -and $process.Name -eq "RiotClientUx") {
+      
+      if ($windowTitle -match "Riot Client" -or ($process -and $process.Name -match "RiotClientUx")) {
         Write-Output "RIOT_ACTIVE"
       } else {
         Write-Output "RIOT_INACTIVE"
