@@ -1,5 +1,5 @@
 
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { CssBaseline } from '@mui/material';
 import { AppThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
