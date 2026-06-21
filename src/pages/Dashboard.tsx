@@ -160,14 +160,18 @@ export const Dashboard: React.FC = () => {
       const oldAcc = originalAccounts[account.id];
       const diffs = generateHistoryDiff(oldAcc, account);
       
-      let actionMsg = 'Account bearbeitet (Besitzer)';
+      let actionMsg = 'Account bearbeitet';
       if (diffs.length > 0) {
         actionMsg = diffs.join(', ');
       }
 
+      // Prüfen, ob es ein eigener oder geteilter Account ist
+      const isSharedAccount = sharedGroups.some(g => g.accounts.some(a => a.id === account.id));
+      const userName = isSharedAccount ? (currentUser?.email || 'Gast') : 'Besitzer';
+
       const historyEntry: HistoryEntry = {
         timestamp: Date.now(),
-        user: 'Besitzer',
+        user: userName,
         action: actionMsg
       };
       
@@ -364,73 +368,52 @@ export const Dashboard: React.FC = () => {
 
         <TableCell>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-            {isShared ? (
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Lvl {account.lol.level}</Typography>
-            ) : (
-              <LevelInput value={account.lol.level} onChange={(v) => handleChange(account.id!, 'lol.level', v)} />
-            )}
+            <LevelInput value={account.lol.level} onChange={(v) => handleChange(account.id!, 'lol.level', v)} />
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               {renderRankIcon('lol', account.lol.rank)}
-              {isShared ? (
-                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{account.lol.rank}</Typography>
-              ) : (
-                <RankInput value={account.lol.rank} options={LOL_RANKS} onChange={(v) => handleChange(account.id!, 'lol.rank', v)} />
-              )}
+              <RankInput value={account.lol.rank} options={LOL_RANKS} onChange={(v) => handleChange(account.id!, 'lol.rank', v)} />
             </Box>
           </Box>
-          {renderCharacters(account.lol.champions, 'lol', () => { if(!isShared) setEditCharactersModal({ accountId: account.id!, game: 'lol' }) })}
+          {renderCharacters(account.lol.champions, 'lol', () => setEditCharactersModal({ accountId: account.id!, game: 'lol' }))}
         </TableCell>
+
 
         <TableCell>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-            {isShared ? (
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>Lvl {account.valorant.level}</Typography>
-            ) : (
-              <LevelInput value={account.valorant.level} onChange={(v) => handleChange(account.id!, 'valorant.level', v)} />
-            )}
+            <LevelInput value={account.valorant.level} onChange={(v) => handleChange(account.id!, 'valorant.level', v)} />
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               {renderRankIcon('valorant', account.valorant.rank)}
-              {isShared ? (
-                <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{account.valorant.rank}</Typography>
-              ) : (
-                <RankInput value={account.valorant.rank} options={VALORANT_RANKS} onChange={(v) => handleChange(account.id!, 'valorant.rank', v)} />
-              )}
+              <RankInput value={account.valorant.rank} options={VALORANT_RANKS} onChange={(v) => handleChange(account.id!, 'valorant.rank', v)} />
             </Box>
           </Box>
-          {renderCharacters(account.valorant.characters, 'valorant', () => { if(!isShared) setEditCharactersModal({ accountId: account.id!, game: 'valorant' }) })}
+          {renderCharacters(account.valorant.characters, 'valorant', () => setEditCharactersModal({ accountId: account.id!, game: 'valorant' }))}
         </TableCell>
 
         <TableCell>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {renderRankIcon('tft', account.tft?.rank || 'Unranked')}
-            {isShared ? (
-              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{account.tft?.rank || 'Unranked'}</Typography>
-            ) : (
-              <RankInput value={account.tft?.rank || 'Unranked'} options={TFT_RANKS} onChange={(v) => handleChange(account.id!, 'tft.rank', v)} />
-            )}
+            <RankInput value={account.tft?.rank || 'Unranked'} options={TFT_RANKS} onChange={(v) => handleChange(account.id!, 'tft.rank', v)} />
           </Box>
         </TableCell>
 
         <TableCell align="right">
           <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            <Button 
+              variant={isDirty ? "contained" : "outlined"} 
+              color={isDirty ? "primary" : "inherit"}
+              size="small" 
+              onClick={() => handleUpdateAccount(account)} 
+              disabled={saving === account.id || !isDirty}
+              sx={{ minWidth: 100 }}
+            >
+              {saving === account.id ? 'Lädt...' : 'Speichern'}
+            </Button>
             {!isShared && (
-              <>
-                <Button 
-                  variant={isDirty ? "contained" : "outlined"} 
-                  color={isDirty ? "primary" : "inherit"}
-                  size="small" 
-                  onClick={() => handleUpdateAccount(account)} 
-                  disabled={saving === account.id || !isDirty}
-                  sx={{ minWidth: 100 }}
-                >
-                  {saving === account.id ? 'Lädt...' : 'Speichern'}
-                </Button>
-                <Tooltip title="Vollständige Account-Details bearbeiten">
-                  <IconButton onClick={() => navigate(`/account/${account.id}`)} color="secondary" size="small">
-                    <Settings size={18} />
-                  </IconButton>
-                </Tooltip>
-              </>
+              <Tooltip title="Vollständige Account-Details bearbeiten">
+                <IconButton onClick={() => navigate(`/account/${account.id}`)} color="secondary" size="small">
+                  <Settings size={18} />
+                </IconButton>
+              </Tooltip>
             )}
             <Tooltip title="Verlauf (Audit Log)">
               <IconButton onClick={() => setHistoryModal(account.history || [])} color="primary" size="small">
