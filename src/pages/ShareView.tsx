@@ -291,27 +291,39 @@ export const ShareView: React.FC = () => {
 
   return (
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
-      <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <AppBar 
+        position="static" 
+        color="transparent" 
+        elevation={0} 
+        sx={{ 
+          borderBottom: 1, 
+          borderColor: 'divider',
+          WebkitAppRegion: 'drag', // Make header draggable
+          paddingRight: isElectron ? '140px' : '0px' // Leave space for native window controls
+        }}
+      >
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
             Riot Accounts - Shared
           </Typography>
-          <Typography variant="body2" sx={{ mr: 2, display: { xs: 'none', sm: 'block' } }}>
-            Gast: {visitorName}
-          </Typography>
-          {!isElectron && (
-            <Button variant="outlined" color="inherit" sx={{ mr: 2 }} href={`riot-app://share/${shareId}`}>
-              In Desktop-App öffnen
-            </Button>
-          )}
-          <IconButton color="inherit" onClick={(e) => setThemeAnchorEl(e.currentTarget)} sx={{ mr: 2 }}>
-            <Palette size={20} />
-          </IconButton>
-          <Menu anchorEl={themeAnchorEl} open={Boolean(themeAnchorEl)} onClose={() => setThemeAnchorEl(null)}>
-            <MenuItem onClick={() => { setTheme('default'); setThemeAnchorEl(null); }}>Standard Dark</MenuItem>
-            <MenuItem onClick={() => { setTheme('hextech'); setThemeAnchorEl(null); }}>Hextech (LoL)</MenuItem>
-            <MenuItem onClick={() => { setTheme('valorant'); setThemeAnchorEl(null); }}>Radiant (Valorant)</MenuItem>
-          </Menu>
+          <Box sx={{ WebkitAppRegion: 'no-drag', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" sx={{ mr: 2, display: { xs: 'none', sm: 'block' } }}>
+              Gast: {visitorName}
+            </Typography>
+            {!isElectron && (
+              <Button variant="outlined" color="inherit" sx={{ mr: 2 }} href={`riot-app://share/${shareId}`}>
+                In Desktop-App öffnen
+              </Button>
+            )}
+            <IconButton color="inherit" onClick={(e) => setThemeAnchorEl(e.currentTarget)}>
+              <Palette size={20} />
+            </IconButton>
+            <Menu anchorEl={themeAnchorEl} open={Boolean(themeAnchorEl)} onClose={() => setThemeAnchorEl(null)}>
+              <MenuItem onClick={() => { setTheme('default'); setThemeAnchorEl(null); }}>Standard Dark</MenuItem>
+              <MenuItem onClick={() => { setTheme('hextech'); setThemeAnchorEl(null); }}>Hextech (LoL)</MenuItem>
+              <MenuItem onClick={() => { setTheme('valorant'); setThemeAnchorEl(null); }}>Radiant (Valorant)</MenuItem>
+            </Menu>
+          </Box>
         </Toolbar>
       </AppBar>
 

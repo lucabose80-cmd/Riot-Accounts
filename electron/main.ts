@@ -112,6 +112,12 @@ function createWindow() {
     height: 800,
     title: 'Riot Accounts',
     autoHideMenuBar: true, // Hide menu bar
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#141218',
+      symbolColor: '#ffffff',
+      height: 32
+    },
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       nodeIntegration: false,

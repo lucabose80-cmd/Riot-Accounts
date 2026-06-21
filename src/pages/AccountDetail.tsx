@@ -9,7 +9,8 @@ import type { RiotAccount } from '../types';
 import { CharacterSelector } from '../components/CharacterSelector';
 import { 
   Container, Typography, TextField, Button, Box, Paper, 
-  Grid, MenuItem, CircularProgress, Divider, Alert, Select, OutlinedInput, Checkbox, ListItemText, FormControl, InputLabel
+  Grid, MenuItem, CircularProgress, Divider, Alert, Select, OutlinedInput, Checkbox, ListItemText, FormControl, InputLabel,
+  AppBar, Toolbar
 } from '@mui/material';
 import { ArrowLeft } from 'lucide-react';
 
@@ -159,12 +160,29 @@ export const AccountDetail: React.FC = () => {
   }));
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 8 }}>
-      <Button startIcon={<ArrowLeft />} onClick={() => navigate('/')} sx={{ mb: 2 }}>
-        Zurück zum Dashboard
-      </Button>
-      
-      <Paper elevation={3} sx={{ p: 4 }}>
+    <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
+      <AppBar 
+        position="static" 
+        color="transparent" 
+        elevation={0} 
+        sx={{ 
+          borderBottom: 1, 
+          borderColor: 'divider',
+          WebkitAppRegion: 'drag', // Make header draggable
+          paddingRight: '140px' // Leave space for native window controls
+        }}
+      >
+        <Toolbar>
+          <Box sx={{ WebkitAppRegion: 'no-drag' }}>
+            <Button color="inherit" startIcon={<ArrowLeft />} onClick={() => navigate('/')}>
+              Zurück zum Dashboard
+            </Button>
+          </Box>
+        </Toolbar>
+      </AppBar>
+
+      <Container maxWidth="md" sx={{ mt: 4, mb: 8 }}>
+        <Paper elevation={3} sx={{ p: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
           {isNew ? 'Neuen Account hinzufügen' : 'Account bearbeiten'}
         </Typography>
@@ -281,5 +299,6 @@ export const AccountDetail: React.FC = () => {
         </Box>
       </Paper>
     </Container>
+    </Box>
   );
 };

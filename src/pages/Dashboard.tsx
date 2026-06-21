@@ -305,22 +305,34 @@ export const Dashboard: React.FC = () => {
 
   return (
     <Box sx={{ flexGrow: 1, minHeight: '100vh', bgcolor: 'background.default' }}>
-      <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <AppBar 
+        position="static" 
+        color="transparent" 
+        elevation={0} 
+        sx={{ 
+          borderBottom: 1, 
+          borderColor: 'divider', 
+          WebkitAppRegion: 'drag', // Make header draggable
+          paddingRight: isElectron ? '140px' : '0px' // Leave space for native window controls
+        }}
+      >
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
             Riot Accounts
           </Typography>
-          <IconButton color="inherit" onClick={(e) => setThemeAnchorEl(e.currentTarget)} sx={{ mr: 2 }}>
-            <Palette size={20} />
-          </IconButton>
-          <Menu anchorEl={themeAnchorEl} open={Boolean(themeAnchorEl)} onClose={() => setThemeAnchorEl(null)}>
-            <MenuItem onClick={() => { setTheme('default'); setThemeAnchorEl(null); }}>Standard Dark</MenuItem>
-            <MenuItem onClick={() => { setTheme('hextech'); setThemeAnchorEl(null); }}>Hextech (LoL)</MenuItem>
-            <MenuItem onClick={() => { setTheme('valorant'); setThemeAnchorEl(null); }}>Radiant (Valorant)</MenuItem>
-          </Menu>
-          <Button color="inherit" onClick={handleLogout} startIcon={<LogOut size={18} />}>
-            Abmelden
-          </Button>
+          <Box sx={{ WebkitAppRegion: 'no-drag', display: 'flex', gap: 1 }}>
+            <IconButton color="inherit" onClick={(e) => setThemeAnchorEl(e.currentTarget)}>
+              <Palette size={20} />
+            </IconButton>
+            <Menu anchorEl={themeAnchorEl} open={Boolean(themeAnchorEl)} onClose={() => setThemeAnchorEl(null)}>
+              <MenuItem onClick={() => { setTheme('default'); setThemeAnchorEl(null); }}>Standard Dark</MenuItem>
+              <MenuItem onClick={() => { setTheme('hextech'); setThemeAnchorEl(null); }}>Hextech (LoL)</MenuItem>
+              <MenuItem onClick={() => { setTheme('valorant'); setThemeAnchorEl(null); }}>Radiant (Valorant)</MenuItem>
+            </Menu>
+            <Button color="inherit" onClick={handleLogout} startIcon={<LogOut size={18} />}>
+              Abmelden
+            </Button>
+          </Box>
         </Toolbar>
       </AppBar>
 
