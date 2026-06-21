@@ -69,7 +69,10 @@ const performAutoLogin = (username: string, password: string): Promise<boolean> 
       Write-Output "SUCCESS"
     `;
 
-    exec(`powershell.exe -NoProfile -Command "${psScript.replace(/\n/g, ';')}"`, (error, stdout, stderr) => {
+    const buffer = Buffer.from(psScript, 'utf16le');
+    const base64Script = buffer.toString('base64');
+
+    exec(`powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${base64Script}`, (error, stdout, stderr) => {
       if (error || stdout.includes("ERROR")) {
         reject(new Error(stdout || stderr || error?.message));
       } else {
@@ -319,7 +322,10 @@ function startRiotWatcher() {
     }
   `;
 
-  const watcher = require('child_process').spawn('powershell.exe', ['-NoProfile', '-Command', psScript]);
+  const buffer = Buffer.from(psScript, 'utf16le');
+  const base64Script = buffer.toString('base64');
+
+  const watcher = require('child_process').spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', base64Script]);
   
   let wasActive = false;
   watcher.stdout.on('data', (data: any) => {
