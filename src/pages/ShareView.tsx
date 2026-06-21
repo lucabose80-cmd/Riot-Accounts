@@ -3,21 +3,26 @@ import { useParams } from 'react-router-dom';
 import { getSharedAccounts, updateAccount } from '../services/db';
 import { fetchLoLChampions, fetchValorantAgents, fetchValorantRanksMap } from '../services/api';
 import type { Champion, Agent } from '../services/api';
-import { LOL_RANKS, VALORANT_RANKS, TFT_RANKS, getRankIcon } from '../types';
+import { getRankIcon, LOL_RANKS, VALORANT_RANKS, TFT_RANKS } from '../types';
 import type { RiotAccount, HistoryEntry } from '../types';
 import { useAppTheme } from '../contexts/ThemeContext';
+import { useElectron } from '../hooks/useElectron';
 import { CharacterSelector } from '../components/CharacterSelector';
 import { generateHistoryDiff } from '../utils/history';
+import { saveSharedLink, getSavedSharedLinks } from '../services/db';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Container, Typography, TextField, Button, Box, Paper, 
   CircularProgress, Alert, Dialog, DialogTitle, DialogContent, DialogActions, Tooltip,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip, AppBar, Toolbar, Menu, MenuItem
 } from '@mui/material';
-import { Plus, Minus, Copy, Eye, EyeOff, Palette } from 'lucide-react';
+import { Plus, Minus, Copy, Eye, EyeOff, Palette, Save, Rocket } from 'lucide-react';
 
 export const ShareView: React.FC = () => {
   const { shareId } = useParams<{ shareId: string }>();
   const { setTheme } = useAppTheme();
+  const { isElectron, autoLogin } = useElectron();
+  const { currentUser } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null); 
@@ -35,6 +40,8 @@ export const ShareView: React.FC = () => {
   const [showNameDialog, setShowNameDialog] = useState(!localStorage.getItem('riot_visitor_name'));
   const [tempName, setTempName] = useState(visitorName);
   const [themeAnchorEl, setThemeAnchorEl] = useState<null | HTMLElement>(null);
+  const [isSaved, setIsSaved] = useState(false);
+  const [savingLink, setSavingLink] = useState(false);
   
   const [editCharactersModal, setEditCharactersModal] = useState<{ accountId: string, game: 'lol' | 'valorant' } | null>(null);
 
@@ -65,6 +72,13 @@ export const ShareView: React.FC = () => {
         setChampions(champs);
         setAgents(agts);
         setValoRankMap(vRanks);
+
+        if (currentUser && shareId) {
+          const savedLinks = await getSavedSharedLinks(currentUser.uid);
+          if (savedLinks.includes(shareId)) {
+            setIsSaved(true);
+          }
+        }
       } catch (err) {
         console.error(err);
         setError("Fehler beim Laden der Daten.");
@@ -74,7 +88,7 @@ export const ShareView: React.FC = () => {
     };
 
     loadData();
-  }, [shareId]);
+  }, [shareId, currentUser]);
 
   const handleSaveName = () => {
     if (!tempName.trim()) return;
@@ -133,6 +147,23 @@ export const ShareView: React.FC = () => {
       if (parts[0] === 'tft') return { ...acc, tft: { ...acc.tft!, [parts[1]]: value } };
       return acc;
     }));
+  };
+
+  const handleSaveShare = async () => {
+    if (!currentUser || !shareId) {
+      alert("Du musst eingeloggt sein, um Freigaben zu speichern!");
+      return;
+    }
+    setSavingLink(true);
+    try {
+      await saveSharedLink(currentUser.uid, shareId);
+      setIsSaved(true);
+    } catch (e) {
+      console.error(e);
+      alert("Fehler beim Speichern der Freigabe");
+    } finally {
+      setSavingLink(false);
+    }
   };
 
   const formattedChampions = champions.map(c => ({
@@ -268,6 +299,11 @@ export const ShareView: React.FC = () => {
           <Typography variant="body2" sx={{ mr: 2, display: { xs: 'none', sm: 'block' } }}>
             Gast: {visitorName}
           </Typography>
+          {!isElectron && (
+            <Button variant="outlined" color="inherit" sx={{ mr: 2 }} href={`riot-app://share/${shareId}`}>
+              In Desktop-App öffnen
+            </Button>
+          )}
           <IconButton color="inherit" onClick={(e) => setThemeAnchorEl(e.currentTarget)} sx={{ mr: 2 }}>
             <Palette size={20} />
           </IconButton>
@@ -280,6 +316,22 @@ export const ShareView: React.FC = () => {
       </AppBar>
 
       <Container maxWidth="xl" sx={{ mt: 4, mb: 8 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            Freigegebene Accounts
+          </Typography>
+          {currentUser && (
+            <Button 
+              variant="contained" 
+              color={isSaved ? "success" : "primary"} 
+              startIcon={<Save />} 
+              onClick={handleSaveShare}
+              disabled={isSaved || savingLink}
+            >
+              {isSaved ? "Gespeichert" : "Freigabe speichern"}
+            </Button>
+          )}
+        </Box>
       <Dialog open={showNameDialog}>
         <DialogTitle>Wer bist du?</DialogTitle>
         <DialogContent>
@@ -318,6 +370,11 @@ export const ShareView: React.FC = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                       <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName}</Typography>
                       <IconButton size="small" onClick={() => { navigator.clipboard.writeText(account.ingameName); alert('Name kopiert!'); }} sx={{ p: 0.5 }}><Copy size={14} /></IconButton>
+                      {isElectron && account.loginName && account.password && (
+                        <Button size="small" variant="contained" color="secondary" startIcon={<Rocket size={14} />} onClick={() => autoLogin(account.loginName, account.password)}>
+                          Auto-Login
+                        </Button>
+                      )}
                     </Box>
                     <Typography variant="caption" color="text.secondary">Server: {account.server}</Typography>
                     <Box sx={{ mt: 1 }}>

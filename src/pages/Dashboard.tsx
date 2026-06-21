@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../contexts/ThemeContext';
-import { getUserAccounts, deleteAccount, createSharedLink, updateAccount } from '../services/db';
+import { useElectron } from '../hooks/useElectron';
+import { getUserAccounts, deleteAccount, createSharedLink, updateAccount, getSavedSharedLinks } from '../services/db';
 import { getRankIcon, LOL_RANKS, VALORANT_RANKS, TFT_RANKS } from '../types';
 import type { RiotAccount, HistoryEntry } from '../types';
 import { auth } from '../firebase';
@@ -13,16 +14,18 @@ import { generateHistoryDiff } from '../utils/history';
 import { 
   Container, Typography, Button, Box, IconButton, Tooltip, CircularProgress, AppBar, Toolbar, Checkbox,
   Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText, Divider,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Menu, MenuItem
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, Menu, MenuItem, Card, CardContent, CardActions
 } from '@mui/material';
-import { Plus, LogOut, Share2, Trash2, History, Minus, Settings, Copy, Eye, EyeOff, Palette } from 'lucide-react';
+import { Plus, LogOut, Share2, Trash2, History, Minus, Settings, Copy, Eye, EyeOff, Palette, Rocket, Link } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const { setTheme } = useAppTheme();
+  const { isElectron, autoLogin } = useElectron();
   const navigate = useNavigate();
   
   const [accounts, setAccounts] = useState<RiotAccount[]>([]);
+  const [savedShares, setSavedShares] = useState<string[]>([]);
   const [originalAccounts, setOriginalAccounts] = useState<Record<string, RiotAccount>>({});
   
   const [loading, setLoading] = useState(true);
@@ -48,6 +51,9 @@ export const Dashboard: React.FC = () => {
       const orig: Record<string, RiotAccount> = {};
       preparedAccs.forEach(a => orig[a.id!] = JSON.parse(JSON.stringify(a)));
       setOriginalAccounts(orig);
+
+      const shares = await getSavedSharedLinks(currentUser.uid);
+      setSavedShares(shares);
     } catch (error) {
       console.error("Failed to fetch accounts", error);
     } finally {
@@ -101,6 +107,7 @@ export const Dashboard: React.FC = () => {
       navigator.clipboard.writeText(url);
       alert('Share-Link für ausgewählte Accounts wurde in die Zwischenablage kopiert!');
       setSelectedAccounts([]);
+      fetchAccounts(); // Refresh to show newly saved share
     } catch (err) {
       console.error(err);
       alert('Fehler beim Erstellen des Share-Links.');
@@ -356,6 +363,11 @@ export const Dashboard: React.FC = () => {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                           <Typography variant="body1" sx={{ fontWeight: 'bold' }}>{account.ingameName}</Typography>
                           <IconButton size="small" onClick={() => { navigator.clipboard.writeText(account.ingameName); alert('Name kopiert!'); }} sx={{ p: 0.5 }}><Copy size={14} /></IconButton>
+                          {isElectron && account.loginName && account.password && (
+                            <Button size="small" variant="contained" color="secondary" startIcon={<Rocket size={14} />} onClick={() => autoLogin(account.loginName, account.password)}>
+                              Auto-Login
+                            </Button>
+                          )}
                         </Box>
                         <Typography variant="caption" color="text.secondary">Server: {account.server}</Typography>
                         <Box sx={{ mt: 1 }}>
@@ -440,6 +452,33 @@ export const Dashboard: React.FC = () => {
               </TableBody>
             </Table>
           </TableContainer>
+        )}
+
+        {savedShares.length > 0 && (
+          <Box sx={{ mt: 6 }}>
+            <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 'bold', mb: 3 }}>
+              Gespeicherte Freigaben
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {savedShares.map(shareId => (
+                <Card key={shareId} sx={{ minWidth: 275, bgcolor: 'background.paper' }}>
+                  <CardContent>
+                    <Typography variant="h6" component="div">
+                      Freigabe: {shareId}
+                    </Typography>
+                    <Typography sx={{ color: 'text.secondary', mb: 1.5 }}>
+                      Hier klicken um die Accounts dieses Links zu sehen.
+                    </Typography>
+                  </CardContent>
+                  <CardActions>
+                    <Button size="small" startIcon={<Link size={16} />} onClick={() => navigate(`/share/${shareId}`)}>
+                      Öffnen
+                    </Button>
+                  </CardActions>
+                </Card>
+              ))}
+            </Box>
+          </Box>
         )}
       </Container>
 

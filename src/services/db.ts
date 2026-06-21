@@ -1,9 +1,32 @@
-import { collection, doc, addDoc, updateDoc, getDocs, query, where, deleteDoc } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, getDocs, query, where, deleteDoc, setDoc, getDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { RiotAccount } from '../types';
 
 const ACCOUNTS_COLLECTION = 'accounts';
 const SHARED_LINKS_COLLECTION = 'shared_links';
+const USERS_COLLECTION = 'users';
+
+export const saveSharedLink = async (userId: string, shareId: string) => {
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) {
+    await setDoc(userRef, { savedShares: [shareId] });
+  } else {
+    await updateDoc(userRef, {
+      savedShares: arrayUnion(shareId)
+    });
+  }
+};
+
+export const getSavedSharedLinks = async (userId: string): Promise<string[]> => {
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  const userSnap = await getDoc(userRef);
+  if (userSnap.exists()) {
+    return userSnap.data().savedShares || [];
+  }
+  return [];
+};
+
 
 export const getUserAccounts = async (userId: string): Promise<RiotAccount[]> => {
   const q = query(collection(db, ACCOUNTS_COLLECTION), where("userId", "==", userId));
