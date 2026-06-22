@@ -10,6 +10,7 @@ let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+let isOverlayExpanded = false;
 let currentAccountsData: { own: any[], shared: any[] } = { own: [], shared: [] };
 
 // Auto-Login PowerShell Logic
@@ -255,6 +256,7 @@ function createWindow(isHidden: boolean = false) {
   createTray();
 
   ipcMain.on('expand-overlay', () => {
+    isOverlayExpanded = true;
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       const bounds = overlayWindow.getBounds();
       // Expand width to 600px to make room for tooltips on the right
@@ -268,6 +270,7 @@ function createWindow(isHidden: boolean = false) {
   });
 
   ipcMain.on('shrink-overlay', () => {
+    isOverlayExpanded = false;
     if (overlayWindow && !overlayWindow.isDestroyed()) {
       const bounds = overlayWindow.getBounds();
       // Restore width to 340px
@@ -401,7 +404,7 @@ function startRiotWatcher() {
           const height = parseInt(parts[4], 10);
 
           // Position overlay directly to the right of Riot Client with same height
-          const overlayWidth = 340;
+          const overlayWidth = isOverlayExpanded ? 600 : 340;
           overlayWindow.setBounds({
             x: x + width + 10, // 10px padding
             y: y,
