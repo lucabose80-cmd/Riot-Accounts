@@ -8,5 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onUpdateAccounts: (callback: (accounts: any) => void) => {
     ipcRenderer.on('update-accounts', (_event, accounts) => callback(accounts));
-  }
+  },
+  expandOverlay: () => ipcRenderer.send('expand-overlay'),
+  shrinkOverlay: () => ipcRenderer.send('shrink-overlay')
 });

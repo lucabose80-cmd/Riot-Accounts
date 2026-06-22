@@ -3,6 +3,8 @@ export interface ElectronAPI {
   updateTray: (accounts: any) => void;
   onDeepLink: (callback: (url: string) => void) => void;
   onUpdateAccounts: (callback: (accounts: any) => void) => void;
+  expandOverlay: () => void;
+  shrinkOverlay: () => void;
 }
 
 declare global {

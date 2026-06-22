@@ -254,6 +254,31 @@ function createWindow(isHidden: boolean = false) {
 
   createTray();
 
+  ipcMain.on('expand-overlay', () => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      const bounds = overlayWindow.getBounds();
+      // Expand width to 600px to make room for tooltips on the right
+      overlayWindow.setBounds({
+        x: bounds.x,
+        y: bounds.y,
+        width: 600,
+        height: bounds.height
+      });
+    }
+  });
+
+  ipcMain.on('shrink-overlay', () => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      const bounds = overlayWindow.getBounds();
+      // Restore width to 340px
+      overlayWindow.setBounds({
+        x: bounds.x,
+        y: bounds.y,
+        width: 340,
+        height: bounds.height
+      });
+    }
+  });
   // In production, we load the built index.html. In dev, we load localhost.
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
