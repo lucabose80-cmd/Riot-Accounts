@@ -47,7 +47,7 @@ export const OverlayView: React.FC = () => {
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
           {isAll ? 'Alle' : `${count}/${total}`}
         </Typography>
-        <Tooltip title={titleContent} placement="left" arrow slotProps={{ tooltip: { sx: { bgcolor: 'rgba(20, 18, 24, 0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' } }, arrow: { sx: { color: 'rgba(20, 18, 24, 0.95)' } } }}>
+        <Tooltip title={titleContent} placement="right" arrow slotProps={{ tooltip: { sx: { bgcolor: 'rgba(20, 18, 24, 0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' } }, arrow: { sx: { color: 'rgba(20, 18, 24, 0.95)' } } }}>
           <Box>
             <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 20, height: 20, fontSize: 10, borderColor: 'rgba(255,255,255,0.1)' } }}>
               {unlockedIds.slice(0, 4).map(id => {
