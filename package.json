@@ -23,6 +23,11 @@
         "nsis"
       ]
     },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "Riot Accounts"
+    },
     "protocols": {
       "name": "riot-app",
       "schemes": [

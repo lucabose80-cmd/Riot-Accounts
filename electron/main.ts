@@ -216,6 +216,23 @@ function createWindow(isHidden: boolean = false) {
     }
 
     template.push({
+      label: 'Windows Autostart',
+      type: 'checkbox',
+      checked: app.getLoginItemSettings().openAtLogin,
+      click: (item) => {
+        app.setLoginItemSettings({
+          openAtLogin: item.checked,
+          path: app.getPath('exe'),
+          args: [
+            '--processStart', `"${app.name}"`,
+            '--process-start-args', `"--hidden"`
+          ]
+        });
+      }
+    });
+    template.push({ type: 'separator' });
+
+    template.push({
       label: 'Beenden',
       click: () => {
         isQuitting = true;

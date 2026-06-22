@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Paper, Divider, GlobalStyles, CardActionArea, Avatar, AvatarGroup } from '@mui/material';
+import { Box, Typography, Paper, Divider, GlobalStyles, CardActionArea, Avatar, AvatarGroup, Tooltip } from '@mui/material';
 import { Rocket } from 'lucide-react';
 import { useElectron } from '../hooks/useElectron';
 import { fetchLoLChampions, fetchValorantAgents } from '../services/api';
@@ -21,6 +21,45 @@ export const OverlayView: React.FC = () => {
       });
     }
   }, []);
+
+  const CharacterHoverList = ({ unlockedIds, allCharacters, isAgent }: { unlockedIds: string[], allCharacters: any[], isAgent?: boolean }) => {
+    if (!unlockedIds || !allCharacters.length) return null;
+    const count = unlockedIds.length;
+    const total = allCharacters.length;
+    const isAll = count >= total - 5; // A bit of tolerance for new unreleased chars
+
+    const titleContent = (
+      <Box sx={{ p: 0.5, maxWidth: 220 }}>
+        <Typography variant="caption" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
+          {isAll ? 'Alle freigeschaltet' : `${count} / ${total} ${isAgent ? 'Agenten' : 'Champions'}`}
+        </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+          {unlockedIds.map(id => {
+            const char = allCharacters.find(c => (isAgent ? c.uuid === id : c.id === id));
+            return char ? <Avatar key={id} src={isAgent ? char.displayIcon : char.imageUrl} sx={{ width: 24, height: 24 }} /> : null;
+          })}
+        </Box>
+      </Box>
+    );
+
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+          {isAll ? 'Alle' : `${count}/${total}`}
+        </Typography>
+        <Tooltip title={titleContent} placement="left" arrow slotProps={{ tooltip: { sx: { bgcolor: 'rgba(20, 18, 24, 0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' } }, arrow: { sx: { color: 'rgba(20, 18, 24, 0.95)' } } }}>
+          <Box>
+            <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 20, height: 20, fontSize: 10, borderColor: 'rgba(255,255,255,0.1)' } }}>
+              {unlockedIds.slice(0, 4).map(id => {
+                const char = allCharacters.find(c => (isAgent ? c.uuid === id : c.id === id));
+                return char ? <Avatar key={id} src={isAgent ? char.displayIcon : char.imageUrl} /> : null;
+              })}
+            </AvatarGroup>
+          </Box>
+        </Tooltip>
+      </Box>
+    );
+  };
 
   const totalAccounts = accountsData.own.length + accountsData.shared.length;
 
@@ -89,12 +128,7 @@ export const OverlayView: React.FC = () => {
                               Lvl {acc.lol?.level || '?'} • {acc.lol?.rank || 'Unranked'}
                             </Typography>
                           </Box>
-                          <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 20, height: 20, fontSize: 10, borderColor: 'rgba(255,255,255,0.1)' } }}>
-                            {acc.lol?.champions?.slice(0, 4).map((id: string) => {
-                              const c = champions.find(ch => ch.id === id);
-                              return c ? <Avatar key={id} src={c.imageUrl} alt={c.name} /> : null;
-                            })}
-                          </AvatarGroup>
+                          <CharacterHoverList unlockedIds={acc.lol?.champions} allCharacters={champions} />
                         </Box>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <Box>
@@ -103,12 +137,7 @@ export const OverlayView: React.FC = () => {
                               Lvl {acc.valorant?.level || '?'} • {acc.valorant?.rank || 'Unranked'}
                             </Typography>
                           </Box>
-                          <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 20, height: 20, fontSize: 10, borderColor: 'rgba(255,255,255,0.1)' } }}>
-                            {acc.valorant?.characters?.slice(0, 4).map((id: string) => {
-                              const a = agents.find(ag => ag.uuid === id);
-                              return a ? <Avatar key={id} src={a.displayIcon} alt={a.displayName} /> : null;
-                            })}
-                          </AvatarGroup>
+                          <CharacterHoverList unlockedIds={acc.valorant?.characters} allCharacters={agents} isAgent />
                         </Box>
                       </Box>
                     </CardActionArea>
@@ -146,12 +175,7 @@ export const OverlayView: React.FC = () => {
                               Lvl {acc.lol?.level || '?'} • {acc.lol?.rank || 'Unranked'}
                             </Typography>
                           </Box>
-                          <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 20, height: 20, fontSize: 10, borderColor: 'rgba(255,255,255,0.1)' } }}>
-                            {acc.lol?.champions?.slice(0, 4).map((id: string) => {
-                              const c = champions.find(ch => ch.id === id);
-                              return c ? <Avatar key={id} src={c.imageUrl} alt={c.name} /> : null;
-                            })}
-                          </AvatarGroup>
+                          <CharacterHoverList unlockedIds={acc.lol?.champions} allCharacters={champions} />
                         </Box>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <Box>
@@ -160,12 +184,7 @@ export const OverlayView: React.FC = () => {
                               Lvl {acc.valorant?.level || '?'} • {acc.valorant?.rank || 'Unranked'}
                             </Typography>
                           </Box>
-                          <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 20, height: 20, fontSize: 10, borderColor: 'rgba(255,255,255,0.1)' } }}>
-                            {acc.valorant?.characters?.slice(0, 4).map((id: string) => {
-                              const a = agents.find(ag => ag.uuid === id);
-                              return a ? <Avatar key={id} src={a.displayIcon} alt={a.displayName} /> : null;
-                            })}
-                          </AvatarGroup>
+                          <CharacterHoverList unlockedIds={acc.valorant?.characters} allCharacters={agents} isAgent />
                         </Box>
                       </Box>
                     </CardActionArea>
