@@ -294,6 +294,16 @@ function startRiotWatcher() {
       using System;
       using System.Runtime.InteropServices;
       using System.Text;
+
+      [StructLayout(LayoutKind.Sequential)]
+      public struct RECT
+      {
+          public int Left;
+          public int Top;
+          public int Right;
+          public int Bottom;
+      }
+
       public class Win32 {
         [DllImport("user32.dll")]
         public static extern IntPtr GetForegroundWindow();
@@ -301,6 +311,8 @@ function startRiotWatcher() {
         public static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+        [DllImport("user32.dll")]
+        public static extern bool GetWindowRect(IntPtr hwnd, out RECT lpRect);
       }
 "@
     while($true) {
@@ -314,7 +326,11 @@ function startRiotWatcher() {
       $process = Get-Process -Id $pid -ErrorAction SilentlyContinue
       
       if ($windowTitle -match "Riot Client" -or ($process -and $process.Name -match "RiotClientUx")) {
-        Write-Output "RIOT_ACTIVE"
+        $rect = New-Object RECT
+        [Win32]::GetWindowRect($hwnd, [ref]$rect) | Out-Null
+        $width = $rect.Right - $rect.Left
+        $height = $rect.Bottom - $rect.Top
+        Write-Output "RIOT_ACTIVE|$($rect.Left)|$($rect.Top)|$width|$height"
       } else {
         Write-Output "RIOT_INACTIVE"
       }
@@ -329,22 +345,40 @@ function startRiotWatcher() {
   
   let wasActive = false;
   watcher.stdout.on('data', (data: any) => {
-    const output = data.toString().trim();
-    if (output.includes('RIOT_ACTIVE')) {
-      if (!wasActive && overlayWindow) {
-        // Find position of RiotClientUx and put overlay near it
-        // For simplicity, we just show it if not shown
-        if (!overlayWindow.isVisible()) {
-          overlayWindow.showInactive();
-          overlayWindow.webContents.send('update-accounts', currentAccountsData);
+    const lines = data.toString().trim().split('\n');
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) continue;
+      
+      if (line.startsWith('RIOT_ACTIVE')) {
+        const parts = line.split('|');
+        if (parts.length === 5 && overlayWindow && !overlayWindow.isDestroyed()) {
+          const x = parseInt(parts[1], 10);
+          const y = parseInt(parts[2], 10);
+          const width = parseInt(parts[3], 10);
+          const height = parseInt(parts[4], 10);
+
+          // Position overlay directly to the right of Riot Client with same height
+          const overlayWidth = 340;
+          overlayWindow.setBounds({
+            x: x + width + 10, // 10px padding
+            y: y,
+            width: overlayWidth,
+            height: height
+          });
+
+          if (!wasActive && !overlayWindow.isVisible()) {
+            overlayWindow.showInactive();
+            overlayWindow.webContents.send('update-accounts', currentAccountsData);
+          }
         }
+        wasActive = true;
+      } else if (line.includes('RIOT_INACTIVE')) {
+        if (wasActive && overlayWindow && !overlayWindow.isFocused()) {
+          overlayWindow.hide();
+        }
+        wasActive = false;
       }
-      wasActive = true;
-    } else if (output.includes('RIOT_INACTIVE')) {
-      if (wasActive && overlayWindow && !overlayWindow.isFocused()) {
-        overlayWindow.hide();
-      }
-      wasActive = false;
     }
   });
 
